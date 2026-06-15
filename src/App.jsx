@@ -1,19 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 
-// Predefiniowana paleta kolorów (sztywno zakodowane, użytkownik nie wybiera dowolnego koloru)
+// --------------------------------------------------------------
+// BARDZIEJ JASKRAWA PALETA
+// --------------------------------------------------------------
 const MASTER_PALETTE = [
-  { hex: "#E8C547", defaultLabel: "Żółty" },
-  { hex: "#5B9BF0", defaultLabel: "Niebieski" },
-  { hex: "#F07373", defaultLabel: "Czerwony" },
-  { hex: "#6DCF8E", defaultLabel: "Zielony" },
-  { hex: "#C56CE8", defaultLabel: "Fioletowy" },
-  { hex: "#F09B42", defaultLabel: "Pomarańczowy" },
-  { hex: "#F27EA8", defaultLabel: "Różowy" },
-  { hex: "#8B5A2B", defaultLabel: "Brązowy" },
+  { hex: "#FFD966", defaultLabel: "Task" },
+  { hex: "#4D9EFF", defaultLabel: "Task" },
+  { hex: "#FF6B6B", defaultLabel: "Task" },
+  { hex: "#6BCB77", defaultLabel: "Task" },
+  { hex: "#D96CFF", defaultLabel: "Task" },
+  { hex: "#FFB347", defaultLabel: "Task" },
+  { hex: "#FF80B3", defaultLabel: "Task" },
+  { hex: "#B5835A", defaultLabel: "Task" },
 ];
 
 const MAX_COLORS = 6;
-const STORAGE_KEY = "tickcal_v3";
+const STORAGE_KEY = "tickcal_v5";
 
 function loadState() {
   try {
@@ -29,7 +31,6 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-// Migracja starych danych (pojedynczy kolor na dzień -> tablica)
 function migrateTicks(oldTicks) {
   if (!oldTicks) return {};
   const newTicks = {};
@@ -64,60 +65,68 @@ export default function App() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [activeColors, setActiveColors] = useState([]);   // tablica obiektów kolorów z unikalnym id
+  const [activeColors, setActiveColors] = useState([]);
   const [activeColorId, setActiveColorId] = useState(null);
-  const [ticks, setTicks] = useState({});   // "YYYY-MM-DD" -> array of color ids
-  const [labels, setLabels] = useState({}); // colorId -> custom label
+  const [ticks, setTicks] = useState({});
+  const [labels, setLabels] = useState({});
   const [editingLabel, setEditingLabel] = useState(null);
   const [labelDraft, setLabelDraft] = useState("");
   const [showAddPalette, setShowAddPalette] = useState(false);
   const addButtonRef = useRef(null);
 
-  // Inicjalizacja: wczytaj z localStorage lub ustaw domyślne 4 kolory
+  // Notatki
+  const [notes, setNotes] = useState({});
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  // Inicjalizacja
   useEffect(() => {
     const saved = loadState();
     if (saved) {
       if (saved.activeColors && Array.isArray(saved.activeColors)) {
         setActiveColors(saved.activeColors);
       } else {
-        // Domyślnie pierwsze 4 kolory z palety
         const defaultColors = MASTER_PALETTE.slice(0, 4).map((c, idx) => ({
           ...c,
-          id: idx + 1, // stare ID dla kompatybilności
+          id: idx + 1,
+          defaultLabel: `Task ${idx + 1}`,
         }));
         setActiveColors(defaultColors);
+        const initialLabels = {};
+        defaultColors.forEach(c => { initialLabels[c.id] = c.defaultLabel; });
+        setLabels(initialLabels);
       }
-      if (saved.ticks) {
-        setTicks(migrateTicks(saved.ticks));
-      }
-      if (saved.labels) {
-        setLabels(saved.labels);
-      }
-      if (saved.activeColorId) {
-        setActiveColorId(saved.activeColorId);
-      }
+      if (saved.ticks) setTicks(migrateTicks(saved.ticks));
+      if (saved.labels) setLabels(prev => ({ ...prev, ...saved.labels }));
+      if (saved.activeColorId) setActiveColorId(saved.activeColorId);
+      if (saved.notes) setNotes(saved.notes);
+      if (saved.selectedDate) setSelectedDate(saved.selectedDate);
     } else {
-      // Brak zapisanych danych – ustaw domyślne 4 kolory
       const defaultColors = MASTER_PALETTE.slice(0, 4).map((c, idx) => ({
         ...c,
         id: idx + 1,
+        defaultLabel: `Task ${idx + 1}`,
       }));
       setActiveColors(defaultColors);
+      const initialLabels = {};
+      defaultColors.forEach(c => { initialLabels[c.id] = c.defaultLabel; });
+      setLabels(initialLabels);
       if (defaultColors.length > 0) setActiveColorId(defaultColors[0].id);
     }
   }, []);
 
-  // Zapisz do localStorage przy każdej zmianie
   useEffect(() => {
     saveState({
       activeColors,
       ticks,
       labels,
       activeColorId,
+      notes,
+      selectedDate,
     });
-  }, [activeColors, ticks, labels, activeColorId]);
+  }, [activeColors, ticks, labels, activeColorId, notes, selectedDate]);
 
-  // Upewnij się, że aktywny kolor istnieje
   useEffect(() => {
     const exists = activeColors.some(c => c.id === activeColorId);
     if (!exists && activeColors.length > 0) {
@@ -148,6 +157,7 @@ export default function App() {
       }
       return { ...prev, [key]: newColors };
     });
+    setSelectedDate(key);
   }
 
   function getLabel(colorId) {
@@ -166,25 +176,19 @@ export default function App() {
     }
   }
 
-  // Liczniki dla aktualnego miesiąca
   const counts = {};
   activeColors.forEach(c => { counts[c.id] = 0; });
   Object.entries(ticks).forEach(([key, colorIds]) => {
     const [y, m] = key.split("-").map(Number);
     if (y === viewYear && m === viewMonth + 1) {
-      colorIds.forEach(cid => {
-        counts[cid] = (counts[cid] || 0) + 1;
-      });
+      colorIds.forEach(cid => { counts[cid] = (counts[cid] || 0) + 1; });
     }
   });
 
-  // Liczniki ogółem
   const totalCounts = {};
   activeColors.forEach(c => { totalCounts[c.id] = 0; });
   Object.values(ticks).forEach(colorIds => {
-    colorIds.forEach(cid => {
-      totalCounts[cid] = (totalCounts[cid] || 0) + 1;
-    });
+    colorIds.forEach(cid => { totalCounts[cid] = (totalCounts[cid] || 0) + 1; });
   });
 
   function prevMonth() {
@@ -196,14 +200,12 @@ export default function App() {
     else setViewMonth(m => m + 1);
   }
 
-  // Dodawanie koloru z predefiniowanej palety
   function addColorFromPalette(paletteColor) {
     if (activeColors.length >= MAX_COLORS) {
       alert(`Możesz dodać maksymalnie ${MAX_COLORS} kolorów.`);
       setShowAddPalette(false);
       return;
     }
-    // Sprawdź czy kolor o takim hex już istnieje (opcjonalnie – można dodać ten sam kolor? Zakładamy, że nie)
     const alreadyExists = activeColors.some(c => c.hex === paletteColor.hex);
     if (alreadyExists) {
       alert("Ten kolor jest już dodany.");
@@ -211,12 +213,11 @@ export default function App() {
       return;
     }
     const newId = Date.now();
-    const newColor = {
-      ...paletteColor,
-      id: newId,
-    };
+    const nextNumber = activeColors.length + 1;
+    const newLabel = `Task ${nextNumber}`;
+    const newColor = { ...paletteColor, id: newId, defaultLabel: newLabel };
     setActiveColors(prev => [...prev, newColor]);
-    setLabels(prev => ({ ...prev, [newId]: paletteColor.defaultLabel }));
+    setLabels(prev => ({ ...prev, [newId]: newLabel }));
     setActiveColorId(newId);
     setShowAddPalette(false);
   }
@@ -226,50 +227,91 @@ export default function App() {
       alert("Musi pozostać przynajmniej jeden kolor.");
       return;
     }
-    const colorToDelete = activeColors.find(c => c.id === colorId);
-    if (!colorToDelete) return;
-    const confirmMsg = `Usunąć kolor "${getLabel(colorId)}"? Wszystkie oznaczenia tym kolorem znikną.`;
-    if (!window.confirm(confirmMsg)) return;
-
-    // Usuń z listy aktywnych kolorów
+    if (!window.confirm(`Usunąć kolor "${getLabel(colorId)}"? Wszystkie oznaczenia znikną.`)) return;
     setActiveColors(prev => prev.filter(c => c.id !== colorId));
-    // Usuń z wszystkich ticków
     setTicks(prev => {
       const newTicks = {};
       for (const [date, colorIds] of Object.entries(prev)) {
         const filtered = colorIds.filter(id => id !== colorId);
-        if (filtered.length > 0) {
-          newTicks[date] = filtered;
-        }
+        if (filtered.length) newTicks[date] = filtered;
       }
       return newTicks;
     });
-    // Usuń etykietę
     setLabels(prev => {
       const { [colorId]: _, ...rest } = prev;
       return rest;
     });
-    // Aktywny kolor zostanie automatycznie zaktualizowany przez useEffect
   }
 
-  // Nieużywane kolory z palety (których nie ma w activeColors)
   const unusedColors = MASTER_PALETTE.filter(
-    masterColor => !activeColors.some(active => active.hex === masterColor.hex)
+    master => !activeColors.some(active => active.hex === master.hex)
   );
 
-  // Zamknięcie palety po kliknięciu poza nią
   useEffect(() => {
     function handleClickOutside(event) {
       if (addButtonRef.current && !addButtonRef.current.contains(event.target)) {
         const paletteDiv = document.getElementById("add-palette-panel");
-        if (paletteDiv && !paletteDiv.contains(event.target)) {
-          setShowAddPalette(false);
-        }
+        if (paletteDiv && !paletteDiv.contains(event.target)) setShowAddPalette(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Notatki - funkcje
+  function openNoteModal() {
+    if (!selectedDate) {
+      alert("Najpierw kliknij na dowolny dzień w kalendarzu.");
+      return;
+    }
+    const existingNote = notes[selectedDate] || "";
+    setNoteDraft(existingNote);
+    setShowNoteModal(true);
+  }
+
+  function saveNote() {
+    if (!selectedDate) return;
+    if (noteDraft.trim() === "") {
+      setNotes(prev => {
+        const { [selectedDate]: _, ...rest } = prev;
+        return rest;
+      });
+    } else {
+      setNotes(prev => ({ ...prev, [selectedDate]: noteDraft.trim() }));
+    }
+    setShowNoteModal(false);
+    setNoteDraft("");
+  }
+
+  function viewNote() {
+    if (!selectedDate) {
+      alert("Najpierw kliknij na dzień.");
+      return;
+    }
+    const note = notes[selectedDate];
+    if (!note) {
+      alert("Brak notatki dla tego dnia.");
+    } else {
+      alert(`Notatka z dnia ${selectedDate}:\n\n${note}`);
+    }
+  }
+
+  function deleteNote() {
+    if (!selectedDate) {
+      alert("Najpierw kliknij na dzień.");
+      return;
+    }
+    if (!notes[selectedDate]) {
+      alert("Brak notatki do usunięcia.");
+      return;
+    }
+    if (window.confirm("Czy na pewno usunąć notatkę?")) {
+      setNotes(prev => {
+        const { [selectedDate]: _, ...rest } = prev;
+        return rest;
+      });
+    }
+  }
 
   // Generowanie siatki kalendarza
   const cells = [];
@@ -278,10 +320,10 @@ export default function App() {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const isToday = (d) =>
-    d &&
-    viewYear === today.getFullYear() &&
-    viewMonth === today.getMonth() &&
-    d === today.getDate();
+    d && viewYear === today.getFullYear() && viewMonth === today.getMonth() && d === today.getDate();
+
+  // Czy dla wybranego dnia istnieje notatka?
+  const hasNoteForSelected = selectedDate && notes[selectedDate];
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 0 40px" }}>
@@ -294,16 +336,14 @@ export default function App() {
         top: 0,
         zIndex: 10,
       }}>
-        {/* Nawigacja miesiąca */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <button onClick={prevMonth} style={navBtnStyle}>‹</button>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500, letterSpacing: "-0.5px" }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
             {MONTHS_PL[viewMonth]} {viewYear}
           </span>
           <button onClick={nextMonth} style={navBtnStyle}>›</button>
         </div>
 
-        {/* Kółka kolorów + przycisk dodawania */}
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", alignItems: "center", position: "relative" }}>
           {activeColors.map(c => (
             <button
@@ -317,8 +357,8 @@ export default function App() {
                 border: activeColorId === c.id ? `3px solid #fff` : "3px solid transparent",
                 outline: activeColorId === c.id ? `2px solid ${c.hex}` : "none",
                 cursor: "pointer",
-                transition: "transform 0.15s, outline 0.15s",
                 transform: activeColorId === c.id ? "scale(1.2)" : "scale(1)",
+                transition: "transform 0.15s, outline 0.15s",
               }}
             />
           ))}
@@ -338,15 +378,11 @@ export default function App() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                transition: "background 0.1s",
               }}
-              title="Dodaj kolor z palety (max 6)"
             >
               +
             </button>
           )}
-
-          {/* Panel wyboru koloru z palety */}
           {showAddPalette && unusedColors.length > 0 && (
             <div
               id="add-palette-panel"
@@ -380,7 +416,6 @@ export default function App() {
                     background: color.hex,
                     border: "2px solid #fff",
                     cursor: "pointer",
-                    transition: "transform 0.1s",
                   }}
                   title={color.defaultLabel}
                 />
@@ -401,7 +436,6 @@ export default function App() {
               color: d === "Sb" || d === "Nd" ? "#888" : "#666",
               padding: "6px 0",
               fontFamily: "'DM Mono', monospace",
-              letterSpacing: "0.05em",
             }}>{d}</div>
           ))}
         </div>
@@ -415,8 +449,8 @@ export default function App() {
             const today_ = isToday(day);
             const colIndex = i % 7;
             const isWeekend = colIndex === 5 || colIndex === 6;
+            const hasNote = !!notes[key];
 
-            // Podziel kropki na dwa rzędy (maksymalnie 3 w rzędzie)
             const row1 = colorHexes.slice(0, 3);
             const row2 = colorHexes.slice(3, 6);
 
@@ -435,8 +469,8 @@ export default function App() {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 4,
-                  transition: "background 0.12s, transform 0.1s",
                   position: "relative",
+                  transition: "background 0.12s, transform 0.1s",
                   WebkitTapHighlightColor: "transparent",
                 }}
                 onTouchStart={e => e.currentTarget.style.transform = "scale(0.93)"}
@@ -444,6 +478,18 @@ export default function App() {
                 onMouseDown={e => e.currentTarget.style.transform = "scale(0.93)"}
                 onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               >
+                {hasNote && (
+                  <div style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: 4,
+                    backgroundColor: "#ff4d4d",
+                    borderTopLeftRadius: 8,
+                    borderTopRightRadius: 8,
+                  }} />
+                )}
                 <span style={{
                   fontSize: 14,
                   fontWeight: today_ ? 600 : 400,
@@ -454,18 +500,18 @@ export default function App() {
                   {day}
                 </span>
                 {colorHexes.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "center" }}>
                     {row1.length > 0 && (
-                      <div style={{ display: "flex", gap: 2, justifyContent: "center" }}>
+                      <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
                         {row1.map((hex, idx) => (
-                          <div key={idx} style={{ width: 6, height: 6, borderRadius: "50%", background: hex }} />
+                          <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
                         ))}
                       </div>
                     )}
                     {row2.length > 0 && (
-                      <div style={{ display: "flex", gap: 2, justifyContent: "center" }}>
+                      <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
                         {row2.map((hex, idx) => (
-                          <div key={idx} style={{ width: 6, height: 6, borderRadius: "50%", background: hex }} />
+                          <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
                         ))}
                       </div>
                     )}
@@ -477,8 +523,46 @@ export default function App() {
         </div>
       </div>
 
-      {/* Lista kolorów z licznikami i przyciskami usuwania */}
+      {/* Panel notatek – przyciski w jednej linii, nieco większe */}
       <div style={{ padding: "20px 16px 0" }}>
+        <div style={{
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 10,
+          color: "#555",
+          letterSpacing: "0.1em",
+          marginBottom: 10,
+          textTransform: "uppercase",
+        }}>
+          Notatki
+        </div>
+        <div style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "nowrap",
+          overflowX: "auto",
+          marginBottom: 12,
+        }}>
+          <button onClick={openNoteModal} style={noteButtonStyle}>
+            {hasNoteForSelected ? "✏️ Edytuj" : "📝 Dodaj"}
+          </button>
+          {hasNoteForSelected && (
+            <button onClick={viewNote} style={noteButtonStyle}>👁️ Zobacz</button>
+          )}
+          {hasNoteForSelected && (
+            <button onClick={deleteNote} style={{ ...noteButtonStyle, background: "#3a1a1a", borderColor: "#a00" }}>
+              🗑️ Usuń
+            </button>
+          )}
+        </div>
+        {selectedDate && (
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+            Wybrany dzień: {selectedDate}
+          </div>
+        )}
+      </div>
+
+      {/* Lista kolorów z licznikami */}
+      <div style={{ padding: "0 16px" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
           fontSize: 10,
@@ -504,7 +588,6 @@ export default function App() {
               onClick={() => setActiveColorId(c.id)}
             >
               <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.hex, flexShrink: 0 }} />
-
               {editingLabel === c.id ? (
                 <input
                   autoFocus
@@ -522,7 +605,6 @@ export default function App() {
                     outline: "none",
                     color: "#f0f0f0",
                     fontSize: 14,
-                    fontFamily: "'DM Sans', sans-serif",
                     padding: "2px 0",
                   }}
                 />
@@ -530,48 +612,26 @@ export default function App() {
                 <span
                   style={{ flex: 1, fontSize: 14, color: "#c0c0c0" }}
                   onDoubleClick={e => { e.stopPropagation(); startEditLabel(c.id); }}
-                  title="Kliknij dwukrotnie, aby edytować etykietę"
+                  title="Kliknij dwukrotnie, aby edytować"
                 >
                   {getLabel(c.id)}
                   <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>(2× klik)</span>
                 </span>
               )}
-
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{
-                  fontFamily: "'DM Mono', monospace",
-                  fontSize: 18,
-                  fontWeight: 500,
-                  color: c.hex,
-                  minWidth: 28,
-                  textAlign: "right",
-                }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500, color: c.hex, minWidth: 28, textAlign: "right" }}>
                   {counts[c.id] || 0}
                 </span>
                 <span style={{ color: "#333", fontSize: 12 }}>·</span>
-                <span style={{
-                  fontFamily: "'DM Mono', monospace",
-                  fontSize: 13,
-                  color: "#555",
-                  minWidth: 24,
-                  textAlign: "right",
-                }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#555", minWidth: 24, textAlign: "right" }}>
                   {totalCounts[c.id] || 0}
                 </span>
               </div>
-
               <button
                 onClick={(e) => { e.stopPropagation(); deleteColor(c.id); }}
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "#666",
-                  fontSize: 16,
-                  cursor: "pointer",
-                  padding: "0 4px",
-                  borderRadius: 20,
-                  transition: "color 0.1s",
-                  fontWeight: "bold",
+                  background: "none", border: "none", color: "#666", fontSize: 16, cursor: "pointer",
+                  padding: "0 4px", borderRadius: 20, transition: "color 0.1s", fontWeight: "bold",
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = "#ff8888"}
                 onMouseLeave={e => e.currentTarget.style.color = "#666"}
@@ -583,17 +643,63 @@ export default function App() {
           ))}
         </div>
       </div>
+
+      {/* Modal notatki */}
+      {showNoteModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }} onClick={() => setShowNoteModal(false)}>
+          <div style={{
+            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
+            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>Notatka dla dnia {selectedDate}</h3>
+            <textarea
+              autoFocus
+              value={noteDraft}
+              onChange={e => setNoteDraft(e.target.value)}
+              placeholder="Wpisz treść notatki..."
+              rows={5}
+              style={{
+                width: "100%", background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
+                padding: 12, color: "#f0f0f0", fontSize: 14, fontFamily: "'DM Sans', sans-serif",
+                resize: "vertical",
+              }}
+            />
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setShowNoteModal(false)} style={{ ...modalButton, background: "#333" }}>Anuluj</button>
+              <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>Zapisz</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 const navBtnStyle = {
-  background: "none",
-  border: "none",
-  color: "#888",
-  fontSize: 26,
+  background: "none", border: "none", color: "#888", fontSize: 26,
+  cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
+};
+
+// Nieco większe przyciski notatek (ale nadal w jednej linii)
+const noteButtonStyle = {
+  background: "#1a1a1a",
+  border: "1px solid #3a3a3a",
+  borderRadius: 30,
+  padding: "6px 14px",
+  fontSize: "13px",
+  fontWeight: 500,
+  color: "#ddd",
   cursor: "pointer",
-  padding: "0 8px",
-  lineHeight: 1,
   fontFamily: "'DM Sans', sans-serif",
+  whiteSpace: "nowrap",
+  transition: "background 0.1s",
+};
+
+const modalButton = {
+  border: "none", borderRadius: 30, padding: "8px 20px", color: "#fff",
+  fontSize: 14, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
 };
