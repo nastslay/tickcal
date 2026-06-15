@@ -80,6 +80,9 @@ export default function App() {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
 
+  const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null });
+  const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
+
   // Inicjalizacja
   useEffect(() => {
     const saved = loadState();
@@ -202,13 +205,13 @@ export default function App() {
 
   function addColorFromPalette(paletteColor) {
     if (activeColors.length >= MAX_COLORS) {
-      alert(`Możesz dodać maksymalnie ${MAX_COLORS} kolorów.`);
+      showCustomAlert("Ograniczenie", `Możesz dodać maksymalnie ${MAX_COLORS} kolorów.`);
       setShowAddPalette(false);
       return;
     }
     const alreadyExists = activeColors.some(c => c.hex === paletteColor.hex);
     if (alreadyExists) {
-      alert("Ten kolor jest już dodany.");
+      showCustomAlert("Uwaga", "Ten kolor jest już dodany.");
       setShowAddPalette(false);
       return;
     }
@@ -224,22 +227,31 @@ export default function App() {
 
   function deleteColor(colorId) {
     if (activeColors.length <= 1) {
-      alert("Musi pozostać przynajmniej jeden kolor.");
+      showCustomAlert("Uwaga", "Musi pozostać przynajmniej jeden kolor.");
       return;
     }
-    if (!window.confirm(`Usunąć kolor "${getLabel(colorId)}"? Wszystkie oznaczenia znikną.`)) return;
-    setActiveColors(prev => prev.filter(c => c.id !== colorId));
-    setTicks(prev => {
-      const newTicks = {};
-      for (const [date, colorIds] of Object.entries(prev)) {
-        const filtered = colorIds.filter(id => id !== colorId);
-        if (filtered.length) newTicks[date] = filtered;
-      }
-      return newTicks;
-    });
-    setLabels(prev => {
-      const { [colorId]: _, ...rest } = prev;
-      return rest;
+    const colorName = getLabel(colorId);
+    setCustomModal({
+      open: true,
+      title: "Potwierdzenie",
+      message: `Usunąć kolor "${colorName}"? Wszystkie oznaczenia tym kolorem znikną.`,
+      onConfirm: () => {
+        setActiveColors(prev => prev.filter(c => c.id !== colorId));
+        setTicks(prev => {
+          const newTicks = {};
+          for (const [date, colorIds] of Object.entries(prev)) {
+            const filtered = colorIds.filter(id => id !== colorId);
+            if (filtered.length) newTicks[date] = filtered;
+          }
+          return newTicks;
+        });
+        setLabels(prev => {
+          const { [colorId]: _, ...rest } = prev;
+          return rest;
+        });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+      },
+      showCancel: true,
     });
   }
 
@@ -258,10 +270,9 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Notatki - funkcje
   function openNoteModal() {
     if (!selectedDate) {
-      alert("Najpierw kliknij na dowolny dzień w kalendarzu.");
+      showCustomAlert("Brak wyboru", "Najpierw kliknij na dowolny dzień w kalendarzu.");
       return;
     }
     const existingNote = notes[selectedDate] || "";
@@ -285,35 +296,51 @@ export default function App() {
 
   function viewNote() {
     if (!selectedDate) {
-      alert("Najpierw kliknij na dzień.");
+      showCustomAlert("Brak wyboru", "Najpierw kliknij na dzień.");
       return;
     }
     const note = notes[selectedDate];
     if (!note) {
-      alert("Brak notatki dla tego dnia.");
+      showCustomAlert("Notatka", "Brak notatki dla tego dnia.");
     } else {
-      alert(`Notatka z dnia ${selectedDate}:\n\n${note}`);
+      setViewNoteModal({ open: true, noteText: note });
     }
   }
 
   function deleteNote() {
     if (!selectedDate) {
-      alert("Najpierw kliknij na dzień.");
+      showCustomAlert("Brak wyboru", "Najpierw kliknij na dzień.");
       return;
     }
     if (!notes[selectedDate]) {
-      alert("Brak notatki do usunięcia.");
+      showCustomAlert("Notatka", "Brak notatki do usunięcia.");
       return;
     }
-    if (window.confirm("Czy na pewno usunąć notatkę?")) {
-      setNotes(prev => {
-        const { [selectedDate]: _, ...rest } = prev;
-        return rest;
-      });
-    }
+    setCustomModal({
+      open: true,
+      title: "Potwierdzenie",
+      message: "Czy na pewno usunąć notatkę?",
+      onConfirm: () => {
+        setNotes(prev => {
+          const { [selectedDate]: _, ...rest } = prev;
+          return rest;
+        });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+      },
+      showCancel: true,
+    });
   }
 
-  // Generowanie siatki kalendarza
+  function showCustomAlert(title, message) {
+    setCustomModal({
+      open: true,
+      title,
+      message,
+      onConfirm: () => setCustomModal({ open: false, title: "", message: "", onConfirm: null }),
+      showCancel: false,
+    });
+  }
+
   const cells = [];
   for (let i = 0; i < offset; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -322,7 +349,6 @@ export default function App() {
   const isToday = (d) =>
     d && viewYear === today.getFullYear() && viewMonth === today.getMonth() && d === today.getDate();
 
-  // Czy dla wybranego dnia istnieje notatka?
   const hasNoteForSelected = selectedDate && notes[selectedDate];
 
   return (
@@ -450,6 +476,7 @@ export default function App() {
             const colIndex = i % 7;
             const isWeekend = colIndex === 5 || colIndex === 6;
             const hasNote = !!notes[key];
+            const isSelected = selectedDate === key;
 
             const row1 = colorHexes.slice(0, 3);
             const row2 = colorHexes.slice(3, 6);
@@ -461,7 +488,9 @@ export default function App() {
                 style={{
                   aspectRatio: "1",
                   borderRadius: 10,
-                  border: today_ ? "2px solid #f0f0f0" : "2px solid transparent",
+                  border: isSelected
+                    ? "2px solid #4D9EFF"
+                    : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
                   background: colorHexes.length > 0 ? "#1f1f1f" : "#1a1a1a",
                   cursor: "pointer",
                   display: "flex",
@@ -523,7 +552,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Panel notatek – przyciski w jednej linii, nieco większe */}
+      {/* Panel notatek – przyciski powiększone 1.5x */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -537,19 +566,19 @@ export default function App() {
         </div>
         <div style={{
           display: "flex",
-          gap: 10,
+          gap: 14,                     // zwiększony odstęp między przyciskami
           flexWrap: "nowrap",
           overflowX: "auto",
           marginBottom: 12,
         }}>
-          <button onClick={openNoteModal} style={noteButtonStyle}>
+          <button onClick={openNoteModal} style={largeNoteButton}>
             {hasNoteForSelected ? "✏️ Edytuj" : "📝 Dodaj"}
           </button>
           {hasNoteForSelected && (
-            <button onClick={viewNote} style={noteButtonStyle}>👁️ Zobacz</button>
+            <button onClick={viewNote} style={largeNoteButton}>👁️ Zobacz</button>
           )}
           {hasNoteForSelected && (
-            <button onClick={deleteNote} style={{ ...noteButtonStyle, background: "#3a1a1a", borderColor: "#a00" }}>
+            <button onClick={deleteNote} style={{ ...largeNoteButton, background: "#3a1a1a", borderColor: "#a00" }}>
               🗑️ Usuń
             </button>
           )}
@@ -561,7 +590,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Lista kolorów z licznikami */}
+      {/* Lista kolorów */}
       <div style={{ padding: "0 16px" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -644,7 +673,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Modal notatki */}
+      {/* MODAL: edycja notatki */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -675,6 +704,63 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL: podgląd notatki */}
+      {viewNoteModal.open && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }} onClick={() => setViewNoteModal({ open: false, noteText: "" })}>
+          <div style={{
+            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
+            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>Treść notatki</h3>
+            <div style={{
+              background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
+              padding: 12, color: "#f0f0f0", fontSize: 14, fontFamily: "'DM Sans', sans-serif",
+              whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 300, overflowY: "auto",
+            }}>
+              {viewNoteModal.noteText}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setViewNoteModal({ open: false, noteText: "" })} style={{ ...modalButton, background: "#4D9EFF" }}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ogólny komunikat / potwierdzenie */}
+      {customModal.open && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }} onClick={() => {
+          if (!customModal.showCancel) setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+        }}>
+          <div style={{
+            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 350,
+            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>{customModal.title}</h3>
+            <div style={{ color: "#ddd", fontSize: 14, lineHeight: 1.5, marginBottom: 24 }}>
+              {customModal.message}
+            </div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              {customModal.showCancel && (
+                <button onClick={() => setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false })} style={{ ...modalButton, background: "#333" }}>
+                  Anuluj
+                </button>
+              )}
+              <button onClick={() => { if (customModal.onConfirm) customModal.onConfirm(); }} style={{ ...modalButton, background: "#4D9EFF" }}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -684,13 +770,14 @@ const navBtnStyle = {
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 
-// Nieco większe przyciski notatek (ale nadal w jednej linii)
-const noteButtonStyle = {
+// Przyciski notatek powiększone 1.5x względem poprzedniej wersji (padding: 6px 14px -> 9px 21px, fontSize: 13px -> 19.5px ≈ 20px)
+// Dla zachowania proporcji użyto padding: "9px 20px", fontSize: "18px", oraz nieco większe ikony (emoji pozostają)
+const largeNoteButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
-  borderRadius: 30,
-  padding: "6px 14px",
-  fontSize: "13px",
+  borderRadius: 40,
+  padding: "9px 20px",
+  fontSize: "18px",
   fontWeight: 500,
   color: "#ddd",
   cursor: "pointer",
