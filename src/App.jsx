@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 
 // --------------------------------------------------------------
-// BARDZIEJ JASKRAWA PALETA
+// BARDZO WYRAZISTE KOLORY (mocno nasycone, żywe)
 // --------------------------------------------------------------
 const MASTER_PALETTE = [
-  { hex: "#FFD966", defaultLabel: "Task" },
-  { hex: "#4D9EFF", defaultLabel: "Task" },
-  { hex: "#FF6B6B", defaultLabel: "Task" },
-  { hex: "#6BCB77", defaultLabel: "Task" },
-  { hex: "#D96CFF", defaultLabel: "Task" },
-  { hex: "#FFB347", defaultLabel: "Task" },
-  { hex: "#FF80B3", defaultLabel: "Task" },
-  { hex: "#B5835A", defaultLabel: "Task" },
+  { hex: "#FFD700", defaultLabel: "Task" }, // złoty
+  { hex: "#0099FF", defaultLabel: "Task" }, // neonowy niebieski
+  { hex: "#FF3333", defaultLabel: "Task" }, // krwista czerwień
+  { hex: "#33CC33", defaultLabel: "Task" }, // intensywna zieleń
+  { hex: "#AA33FF", defaultLabel: "Task" }, // mocny fiolet
+  { hex: "#FF6600", defaultLabel: "Task" }, // pomarańcz
+  { hex: "#FF3399", defaultLabel: "Task" }, // różowy
+  { hex: "#CC6600", defaultLabel: "Task" }, // brąz (dla uzupełnienia)
 ];
 
 const MAX_COLORS = 6;
@@ -168,21 +168,28 @@ export default function App() {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
 
+  // NOWA LOGIKA: pierwsze kliknięcie tylko wybiera dzień, drugie (to samo) dodaje/usuwa ticka
   function handleDayClick(day) {
-    if (!activeColorId) return;
     const key = dateKey(day);
-    setTicks(prev => {
-      const current = prev[key] || [];
-      const newColors = current.includes(activeColorId)
-        ? current.filter(id => id !== activeColorId)
-        : [...current, activeColorId];
-      if (newColors.length === 0) {
-        const { [key]: _, ...rest } = prev;
-        return rest;
+    if (selectedDate === key) {
+      // Drugie kliknięcie w ten sam dzień – dodaj/usuń ticka (jeśli aktywny kolor istnieje)
+      if (activeColorId) {
+        setTicks(prev => {
+          const current = prev[key] || [];
+          const newColors = current.includes(activeColorId)
+            ? current.filter(id => id !== activeColorId)
+            : [...current, activeColorId];
+          if (newColors.length === 0) {
+            const { [key]: _, ...rest } = prev;
+            return rest;
+          }
+          return { ...prev, [key]: newColors };
+        });
       }
-      return { ...prev, [key]: newColors };
-    });
-    setSelectedDate(key);
+    } else {
+      // Pierwsze kliknięcie – tylko zaznacz dzień (nie zmieniaj ticków)
+      setSelectedDate(key);
+    }
   }
 
   function getLabel(colorId) {
@@ -249,14 +256,14 @@ export default function App() {
 
   function deleteColor(colorId) {
     if (activeColors.length <= 1) {
-      showCustomAlert("Uwaga", "Musi pozostać przynajmniej jeden kolor. Możesz użyć Resetu, aby przywrócić domyślne ustawienia.");
+      showCustomAlert("Uwaga", "Musi pozostać przynajmniej jeden task. Możesz użyć Resetu, aby przywrócić domyślne ustawienia.");
       return;
     }
-    const colorName = getLabel(colorId);
+    const taskName = getLabel(colorId);
     setCustomModal({
       open: true,
       title: "Potwierdzenie",
-      message: `Usunąć kolor "${colorName}"? Wszystkie oznaczenia tym kolorem znikną.`,
+      message: `Usunąć "${taskName}"? Wszystkie oznaczenia tym taskiem znikną.`, // usunięto słowo "kolor"
       onConfirm: () => {
         setActiveColors(prev => prev.filter(c => c.id !== colorId));
         setTicks(prev => {
@@ -413,7 +420,7 @@ export default function App() {
     setCustomModal({
       open: true,
       title: "Reset wszystkich danych",
-      message: "Czy na pewno chcesz przywrócić domyślne ustawienia? Wszystkie Twoje kolory, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden kolor (Task 1).",
+      message: "Czy na pewno chcesz przywrócić domyślne ustawienia? Wszystkie Twoje taski, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden task (Task 1).",
       onConfirm: () => {
         resetToDefault();
         setCustomModal({ open: false, title: "", message: "", onConfirm: null });
@@ -633,7 +640,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Panel notatek – przyciski wypełniające szerokość, bez suwaka */}
+      {/* Panel notatek */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -669,7 +676,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Lista kolorów */}
+      {/* Lista tasków */}
       <div style={{ padding: "0 16px" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -720,7 +727,7 @@ export default function App() {
                 <span
                   style={{ flex: 1, fontSize: 14, color: "#c0c0c0" }}
                   onDoubleClick={e => { e.stopPropagation(); startEditLabel(c.id); }}
-                  title="Kliknij dwukrotnie, aby edytować"
+                  title="Kliknij dwukrotnie, aby edytować nazwę taska"
                 >
                   {getLabel(c.id)}
                   <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>(2× klik)</span>
@@ -743,7 +750,7 @@ export default function App() {
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = "#ff8888"}
                 onMouseLeave={e => e.currentTarget.style.color = "#666"}
-                title="Usuń kolor"
+                title="Usuń task"
               >
                 ✕
               </button>
@@ -774,7 +781,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* MODALE... (bez zmian) */}
+      {/* MODALE... */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -869,7 +876,6 @@ const navBtnStyle = {
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 
-// Większe przyciski notatek, wypełniające szerokość
 const wideNoteButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
