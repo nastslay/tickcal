@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+:root {
+  --c1: #E8C547;
+  --c2: #5B9BF0;
+  --c3: #F07373;
+  --c4: #6DCF8E;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: #0f0f0f;
+  color: #f0f0f0;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
+}
