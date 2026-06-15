@@ -73,6 +73,7 @@ export default function App() {
   const [labelDraft, setLabelDraft] = useState("");
   const [showAddPalette, setShowAddPalette] = useState(false);
   const addButtonRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Notatki
   const [notes, setNotes] = useState({});
@@ -83,6 +84,21 @@ export default function App() {
   const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
 
+  function getTaskNumberFromLabel(label) {
+    const match = label.match(/Task (\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  function getNextTaskNumber() {
+    let maxNum = 0;
+    activeColors.forEach(c => {
+      const label = labels[c.id] || c.defaultLabel;
+      const num = getTaskNumberFromLabel(label);
+      if (num > maxNum) maxNum = num;
+    });
+    return maxNum + 1;
+  }
+
   // Inicjalizacja
   useEffect(() => {
     const saved = loadState();
@@ -90,7 +106,7 @@ export default function App() {
       if (saved.activeColors && Array.isArray(saved.activeColors)) {
         setActiveColors(saved.activeColors);
       } else {
-        const defaultColors = MASTER_PALETTE.slice(0, 4).map((c, idx) => ({
+        const defaultColors = MASTER_PALETTE.slice(0, 1).map((c, idx) => ({
           ...c,
           id: idx + 1,
           defaultLabel: `Task ${idx + 1}`,
@@ -106,18 +122,25 @@ export default function App() {
       if (saved.notes) setNotes(saved.notes);
       if (saved.selectedDate) setSelectedDate(saved.selectedDate);
     } else {
-      const defaultColors = MASTER_PALETTE.slice(0, 4).map((c, idx) => ({
-        ...c,
-        id: idx + 1,
-        defaultLabel: `Task ${idx + 1}`,
-      }));
-      setActiveColors(defaultColors);
-      const initialLabels = {};
-      defaultColors.forEach(c => { initialLabels[c.id] = c.defaultLabel; });
-      setLabels(initialLabels);
-      if (defaultColors.length > 0) setActiveColorId(defaultColors[0].id);
+      resetToDefault();
     }
   }, []);
+
+  function resetToDefault() {
+    const defaultColors = MASTER_PALETTE.slice(0, 1).map((c, idx) => ({
+      ...c,
+      id: idx + 1,
+      defaultLabel: `Task ${idx + 1}`,
+    }));
+    setActiveColors(defaultColors);
+    const initialLabels = {};
+    defaultColors.forEach(c => { initialLabels[c.id] = c.defaultLabel; });
+    setLabels(initialLabels);
+    setActiveColorId(defaultColors[0].id);
+    setTicks({});
+    setNotes({});
+    setSelectedDate(null);
+  }
 
   useEffect(() => {
     saveState({
@@ -216,7 +239,7 @@ export default function App() {
       return;
     }
     const newId = Date.now();
-    const nextNumber = activeColors.length + 1;
+    const nextNumber = getNextTaskNumber();
     const newLabel = `Task ${nextNumber}`;
     const newColor = { ...paletteColor, id: newId, defaultLabel: newLabel };
     setActiveColors(prev => [...prev, newColor]);
@@ -227,7 +250,7 @@ export default function App() {
 
   function deleteColor(colorId) {
     if (activeColors.length <= 1) {
-      showCustomAlert("Uwaga", "Musi pozostać przynajmniej jeden kolor.");
+      showCustomAlert("Uwaga", "Musi pozostać przynajmniej jeden kolor. Możesz użyć Resetu, aby przywrócić domyślne ustawienia.");
       return;
     }
     const colorName = getLabel(colorId);
@@ -338,6 +361,65 @@ export default function App() {
       message,
       onConfirm: () => setCustomModal({ open: false, title: "", message: "", onConfirm: null }),
       showCancel: false,
+    });
+  }
+
+  function exportData() {
+    const exportState = {
+      activeColors,
+      ticks,
+      labels,
+      activeColorId,
+      notes,
+      selectedDate,
+      version: 5,
+    };
+    const dataStr = JSON.stringify(exportState, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tickcal_backup_${new Date().toISOString().slice(0,19)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (!imported || typeof imported !== "object") throw new Error("Nieprawidłowy format");
+        if (imported.activeColors && Array.isArray(imported.activeColors)) setActiveColors(imported.activeColors);
+        if (imported.ticks) setTicks(imported.ticks);
+        if (imported.labels) setLabels(imported.labels);
+        if (imported.activeColorId) setActiveColorId(imported.activeColorId);
+        if (imported.notes) setNotes(imported.notes);
+        if (imported.selectedDate) setSelectedDate(imported.selectedDate);
+        showCustomAlert("Sukces", "Dane zostały zaimportowane.");
+      } catch (err) {
+        showCustomAlert("Błąd", "Plik nie jest prawidłowym backupem.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) importData(file);
+    e.target.value = null;
+  }
+
+  function resetAllData() {
+    setCustomModal({
+      open: true,
+      title: "Reset wszystkich danych",
+      message: "Czy na pewno chcesz przywrócić domyślne ustawienia? Wszystkie Twoje kolory, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden kolor (Task 1).",
+      onConfirm: () => {
+        resetToDefault();
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+      },
+      showCancel: true,
     });
   }
 
@@ -552,7 +634,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Panel notatek – przyciski powiększone 1.5x */}
+      {/* Panel notatek – kompaktowe przyciski, bez suwaka */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -566,20 +648,19 @@ export default function App() {
         </div>
         <div style={{
           display: "flex",
-          gap: 14,                     // zwiększony odstęp między przyciskami
-          flexWrap: "nowrap",
-          overflowX: "auto",
+          gap: 8,
+          flexWrap: "wrap",
           marginBottom: 12,
         }}>
-          <button onClick={openNoteModal} style={largeNoteButton}>
-            {hasNoteForSelected ? "✏️ Edytuj" : "📝 Dodaj"}
+          <button onClick={openNoteModal} style={compactNoteButton}>
+            {hasNoteForSelected ? "✏️ Edytuj notatkę" : "📝 Dodaj notatkę"}
           </button>
           {hasNoteForSelected && (
-            <button onClick={viewNote} style={largeNoteButton}>👁️ Zobacz</button>
+            <button onClick={viewNote} style={compactNoteButton}>👁️ Zobacz notatkę</button>
           )}
           {hasNoteForSelected && (
-            <button onClick={deleteNote} style={{ ...largeNoteButton, background: "#3a1a1a", borderColor: "#a00" }}>
-              🗑️ Usuń
+            <button onClick={deleteNote} style={{ ...compactNoteButton, background: "#3a1a1a", borderColor: "#a00" }}>
+              🗑️ Usuń notatkę
             </button>
           )}
         </div>
@@ -670,6 +751,28 @@ export default function App() {
               </button>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* STOPKA – przyciski Reset, Import, Eksport */}
+      <div style={{
+        marginTop: 32,
+        borderTop: "1px solid #2a2a2a",
+        padding: "16px 16px 24px",
+      }}>
+        <div style={{
+          display: "flex",
+          gap: 12,
+          justifyContent: "center",
+          flexWrap: "wrap",
+        }}>
+          <button onClick={resetAllData} style={footerButton}>🔄 Resetuj wszystko</button>
+          <button onClick={exportData} style={footerButton}>📤 Eksportuj</button>
+          <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 Importuj</button>
+          <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
+        </div>
+        <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+          Backup i przywracanie danych
         </div>
       </div>
 
@@ -770,19 +873,30 @@ const navBtnStyle = {
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 
-// Przyciski notatek powiększone 1.5x względem poprzedniej wersji (padding: 6px 14px -> 9px 21px, fontSize: 13px -> 19.5px ≈ 20px)
-// Dla zachowania proporcji użyto padding: "9px 20px", fontSize: "18px", oraz nieco większe ikony (emoji pozostają)
-const largeNoteButton = {
+const compactNoteButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
-  borderRadius: 40,
-  padding: "9px 20px",
-  fontSize: "18px",
+  borderRadius: 30,
+  padding: "4px 10px",
+  fontSize: "12px",
   fontWeight: 500,
   color: "#ddd",
   cursor: "pointer",
   fontFamily: "'DM Sans', sans-serif",
   whiteSpace: "nowrap",
+  transition: "background 0.1s",
+};
+
+const footerButton = {
+  background: "#1a1a1a",
+  border: "1px solid #3a3a3a",
+  borderRadius: 30,
+  padding: "8px 16px",
+  fontSize: "14px",
+  fontWeight: 500,
+  color: "#ccc",
+  cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif",
   transition: "background 0.1s",
 };
 
