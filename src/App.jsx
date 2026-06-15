@@ -99,7 +99,6 @@ export default function App() {
     return maxNum + 1;
   }
 
-  // Inicjalizacja
   useEffect(() => {
     const saved = loadState();
     if (saved) {
@@ -634,7 +633,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Panel notatek – kompaktowe przyciski, bez suwaka */}
+      {/* Panel notatek – przyciski wypełniające szerokość, bez suwaka */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -648,20 +647,19 @@ export default function App() {
         </div>
         <div style={{
           display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
+          gap: 12,
+          flexWrap: "nowrap",
+          width: "100%",
           marginBottom: 12,
         }}>
-          <button onClick={openNoteModal} style={compactNoteButton}>
-            {hasNoteForSelected ? "✏️ Edytuj notatkę" : "📝 Dodaj notatkę"}
-          </button>
-          {hasNoteForSelected && (
-            <button onClick={viewNote} style={compactNoteButton}>👁️ Zobacz notatkę</button>
-          )}
-          {hasNoteForSelected && (
-            <button onClick={deleteNote} style={{ ...compactNoteButton, background: "#3a1a1a", borderColor: "#a00" }}>
-              🗑️ Usuń notatkę
-            </button>
+          {hasNoteForSelected ? (
+            <>
+              <button onClick={openNoteModal} style={{ ...wideNoteButton, flex: 1 }}>✏️ Edytuj notatkę</button>
+              <button onClick={viewNote} style={{ ...wideNoteButton, flex: 1 }}>👁️ Zobacz notatkę</button>
+              <button onClick={deleteNote} style={{ ...wideNoteButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ Usuń notatkę</button>
+            </>
+          ) : (
+            <button onClick={openNoteModal} style={{ ...wideNoteButton, width: "100%" }}>📝 Dodaj notatkę</button>
           )}
         </div>
         {selectedDate && (
@@ -754,7 +752,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* STOPKA – przyciski Reset, Import, Eksport */}
+      {/* STOPKA */}
       <div style={{
         marginTop: 32,
         borderTop: "1px solid #2a2a2a",
@@ -776,7 +774,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* MODAL: edycja notatki */}
+      {/* MODALE... (bez zmian) */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -808,7 +806,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: podgląd notatki */}
       {viewNoteModal.open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -834,7 +831,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ogólny komunikat / potwierdzenie */}
       {customModal.open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -873,17 +869,18 @@ const navBtnStyle = {
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 
-const compactNoteButton = {
+// Większe przyciski notatek, wypełniające szerokość
+const wideNoteButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
-  borderRadius: 30,
-  padding: "4px 10px",
-  fontSize: "12px",
+  borderRadius: 40,
+  padding: "10px 0",
+  fontSize: "15px",
   fontWeight: 500,
   color: "#ddd",
   cursor: "pointer",
   fontFamily: "'DM Sans', sans-serif",
-  whiteSpace: "nowrap",
+  textAlign: "center",
   transition: "background 0.1s",
 };
 
