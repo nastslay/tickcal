@@ -15,8 +15,9 @@ const MASTER_PALETTE = [
 ];
 
 const MAX_COLORS = 6;
-const STORAGE_KEY = "tickcal_v5";
+const STORAGE_KEY = "tickcal_v6"; // nowa wersja – per-miesiąc
 
+// ---------- POMOCNICZE FUNKCJE ----------
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -31,19 +32,20 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function migrateTicks(oldTicks) {
-  if (!oldTicks) return {};
-  const newTicks = {};
-  for (const [date, value] of Object.entries(oldTicks)) {
-    if (typeof value === "number") {
-      newTicks[date] = [value];
-    } else if (Array.isArray(value)) {
-      newTicks[date] = value;
-    } else {
-      newTicks[date] = [];
-    }
-  }
-  return newTicks;
+// Domyślne dane dla nowego miesiąca (jeden task "Task 1")
+function getDefaultMonthData() {
+  const defaultColor = {
+    id: Date.now() + Math.random(),
+    hex: MASTER_PALETTE[0].hex,
+    defaultLabel: "Task 1",
+  };
+  return {
+    colors: [defaultColor],
+    ticks: {},
+    labels: { [defaultColor.id]: "Task 1" },
+    notes: {},
+    activeColorId: defaultColor.id,
+  };
 }
 
 const DAYS_PL = ["Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"];
@@ -61,29 +63,88 @@ function getFirstDayOffset(year, month) {
   return day === 0 ? 6 : day - 1;
 }
 
+// ---------- GŁÓWNY KOMPONENT ----------
 export default function App() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [activeColors, setActiveColors] = useState([]);
-  const [activeColorId, setActiveColorId] = useState(null);
+  const [monthsData, setMonthsData] = useState({});
+  const [currentMonthKey, setCurrentMonthKey] = useState(null);
+
+  // Bieżące dane dla otwartego miesiąca
+  const [colors, setColors] = useState([]);
   const [ticks, setTicks] = useState({});
   const [labels, setLabels] = useState({});
+  const [notes, setNotes] = useState({});
+  const [activeColorId, setActiveColorId] = useState(null);
+
+  // UI – edycja etykiety
   const [editingLabel, setEditingLabel] = useState(null);
   const [labelDraft, setLabelDraft] = useState("");
   const [showAddPalette, setShowAddPalette] = useState(false);
   const addButtonRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Notatki
-  const [notes, setNotes] = useState({});
+  // UI – notatki
   const [selectedDate, setSelectedDate] = useState(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
 
+  // UI – modale
   const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
 
+  // ---------- INICJALIZACJA ----------
+  useEffect(() => {
+    const saved = loadState();
+    if (saved && saved.version === 6 && saved.monthsData) {
+      setMonthsData(saved.monthsData);
+    } else {
+      // Brak danych – utwórz domyślny dla bieżącego miesiąca
+      const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+      const defaultData = getDefaultMonthData();
+      setMonthsData({ [defaultKey]: defaultData });
+    }
+  }, []);
+
+  // Zapisz całość przy każdej zmianie monthsData
+  useEffect(() => {
+    if (Object.keys(monthsData).length > 0) {
+      saveState({ version: 6, monthsData });
+    }
+  }, [monthsData]);
+
+  // Aktualizuj currentMonthKey i wczytaj dane dla bieżącego miesiąca
+  useEffect(() => {
+    const key = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+    setCurrentMonthKey(key);
+    let data = monthsData[key];
+    if (!data) {
+      // Nowy miesiąc – utwórz domyślny
+      data = getDefaultMonthData();
+      setMonthsData(prev => ({ ...prev, [key]: data }));
+    }
+    setColors(data.colors);
+    setTicks(data.ticks);
+    setLabels(data.labels);
+    setNotes(data.notes);
+    setActiveColorId(data.activeColorId);
+  }, [monthsData, viewYear, viewMonth]);
+
+  // Zapisuj zmiany w bieżącym miesiącu do monthsData
+  useEffect(() => {
+    if (!currentMonthKey) return;
+    const data = {
+      colors,
+      ticks,
+      labels,
+      notes,
+      activeColorId,
+    };
+    setMonthsData(prev => ({ ...prev, [currentMonthKey]: data }));
+  }, [colors, ticks, labels, notes, activeColorId, currentMonthKey]);
+
+  // ---------- FUNKCJE POMOCNICZE ----------
   function getTaskNumberFromLabel(label) {
     const match = label.match(/Task (\d+)/);
     return match ? parseInt(match[1], 10) : 0;
@@ -91,7 +152,7 @@ export default function App() {
 
   function getNextTaskNumber() {
     let maxNum = 0;
-    activeColors.forEach(c => {
+    colors.forEach(c => {
       const label = labels[c.id] || c.defaultLabel;
       const num = getTaskNumberFromLabel(label);
       if (num > maxNum) maxNum = num;
@@ -99,80 +160,19 @@ export default function App() {
     return maxNum + 1;
   }
 
-  useEffect(() => {
-    const saved = loadState();
-    if (saved) {
-      if (saved.activeColors && Array.isArray(saved.activeColors)) {
-        setActiveColors(saved.activeColors);
-      } else {
-        const defaultColors = MASTER_PALETTE.slice(0, 1).map((c, idx) => ({
-          ...c,
-          id: idx + 1,
-          defaultLabel: `Task ${idx + 1}`,
-        }));
-        setActiveColors(defaultColors);
-        const initialLabels = {};
-        defaultColors.forEach(c => { initialLabels[c.id] = c.defaultLabel; });
-        setLabels(initialLabels);
-      }
-      if (saved.ticks) setTicks(migrateTicks(saved.ticks));
-      if (saved.labels) setLabels(prev => ({ ...prev, ...saved.labels }));
-      if (saved.activeColorId) setActiveColorId(saved.activeColorId);
-      if (saved.notes) setNotes(saved.notes);
-      if (saved.selectedDate) setSelectedDate(saved.selectedDate);
-    } else {
-      resetToDefault();
-    }
-  }, []);
-
-  function resetToDefault() {
-    const defaultColors = MASTER_PALETTE.slice(0, 1).map((c, idx) => ({
-      ...c,
-      id: idx + 1,
-      defaultLabel: `Task ${idx + 1}`,
-    }));
-    setActiveColors(defaultColors);
-    const initialLabels = {};
-    defaultColors.forEach(c => { initialLabels[c.id] = c.defaultLabel; });
-    setLabels(initialLabels);
-    setActiveColorId(defaultColors[0].id);
-    setTicks({});
-    setNotes({});
-    setSelectedDate(null);
+  function getLabel(colorId) {
+    return labels[colorId] || colors.find(c => c.id === colorId)?.defaultLabel || "";
   }
-
-  useEffect(() => {
-    saveState({
-      activeColors,
-      ticks,
-      labels,
-      activeColorId,
-      notes,
-      selectedDate,
-    });
-  }, [activeColors, ticks, labels, activeColorId, notes, selectedDate]);
-
-  useEffect(() => {
-    const exists = activeColors.some(c => c.id === activeColorId);
-    if (!exists && activeColors.length > 0) {
-      setActiveColorId(activeColors[0].id);
-    } else if (activeColors.length === 0) {
-      setActiveColorId(null);
-    }
-  }, [activeColors, activeColorId]);
-
-  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
-  const offset = getFirstDayOffset(viewYear, viewMonth);
 
   function dateKey(d) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
 
-  // NOWA LOGIKA: pierwsze kliknięcie tylko wybiera dzień, drugie (to samo) dodaje/usuwa ticka
+  // ---------- HANDLERY ----------
   function handleDayClick(day) {
     const key = dateKey(day);
     if (selectedDate === key) {
-      // Drugie kliknięcie w ten sam dzień – dodaj/usuń ticka (jeśli aktywny kolor istnieje)
+      // Drugie kliknięcie – dodaj/usuń ticka
       if (activeColorId) {
         setTicks(prev => {
           const current = prev[key] || [];
@@ -187,41 +187,10 @@ export default function App() {
         });
       }
     } else {
-      // Pierwsze kliknięcie – tylko zaznacz dzień (nie zmieniaj ticków)
+      // Pierwsze kliknięcie – tylko zaznacz dzień
       setSelectedDate(key);
     }
   }
-
-  function getLabel(colorId) {
-    return labels[colorId] || activeColors.find(c => c.id === colorId)?.defaultLabel || "";
-  }
-
-  function startEditLabel(colorId) {
-    setEditingLabel(colorId);
-    setLabelDraft(labels[colorId] || "");
-  }
-
-  function commitLabel() {
-    if (editingLabel !== null) {
-      setLabels(prev => ({ ...prev, [editingLabel]: labelDraft.trim() }));
-      setEditingLabel(null);
-    }
-  }
-
-  const counts = {};
-  activeColors.forEach(c => { counts[c.id] = 0; });
-  Object.entries(ticks).forEach(([key, colorIds]) => {
-    const [y, m] = key.split("-").map(Number);
-    if (y === viewYear && m === viewMonth + 1) {
-      colorIds.forEach(cid => { counts[cid] = (counts[cid] || 0) + 1; });
-    }
-  });
-
-  const totalCounts = {};
-  activeColors.forEach(c => { totalCounts[c.id] = 0; });
-  Object.values(ticks).forEach(colorIds => {
-    colorIds.forEach(cid => { totalCounts[cid] = (totalCounts[cid] || 0) + 1; });
-  });
 
   function prevMonth() {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
@@ -232,40 +201,41 @@ export default function App() {
     else setViewMonth(m => m + 1);
   }
 
+  // ---------- OPERACJE NA TASKACH (BIEŻĄCY MIESIĄC) ----------
   function addColorFromPalette(paletteColor) {
-    if (activeColors.length >= MAX_COLORS) {
-      showCustomAlert("Ograniczenie", `Możesz dodać maksymalnie ${MAX_COLORS} kolorów.`);
+    if (colors.length >= MAX_COLORS) {
+      showCustomAlert("Ograniczenie", `Możesz dodać maksymalnie ${MAX_COLORS} tasków w tym miesiącu.`);
       setShowAddPalette(false);
       return;
     }
-    const alreadyExists = activeColors.some(c => c.hex === paletteColor.hex);
+    const alreadyExists = colors.some(c => c.hex === paletteColor.hex);
     if (alreadyExists) {
-      showCustomAlert("Uwaga", "Ten kolor jest już dodany.");
+      showCustomAlert("Uwaga", "Ten kolor jest już dodany w tym miesiącu.");
       setShowAddPalette(false);
       return;
     }
-    const newId = Date.now();
+    const newId = Date.now() + Math.random();
     const nextNumber = getNextTaskNumber();
     const newLabel = `Task ${nextNumber}`;
     const newColor = { ...paletteColor, id: newId, defaultLabel: newLabel };
-    setActiveColors(prev => [...prev, newColor]);
+    setColors(prev => [...prev, newColor]);
     setLabels(prev => ({ ...prev, [newId]: newLabel }));
     setActiveColorId(newId);
     setShowAddPalette(false);
   }
 
   function deleteColor(colorId) {
-    if (activeColors.length <= 1) {
-      showCustomAlert("Uwaga", "Musi pozostać przynajmniej jeden task. Możesz użyć Resetu, aby przywrócić domyślne ustawienia.");
+    if (colors.length <= 1) {
+      showCustomAlert("Uwaga", "W tym miesiącu musi pozostać przynajmniej jeden task. Możesz użyć Resetu miesiąca, aby przywrócić domyślne ustawienia.");
       return;
     }
     const taskName = getLabel(colorId);
     setCustomModal({
       open: true,
       title: "Potwierdzenie",
-      message: `Usunąć "${taskName}"? Wszystkie oznaczenia tym taskiem znikną.`, // usunięto słowo "kolor"
+      message: `Usunąć "${taskName}" z tego miesiąca? Wszystkie jego oznaczenia w tym miesiącu znikną.`,
       onConfirm: () => {
-        setActiveColors(prev => prev.filter(c => c.id !== colorId));
+        setColors(prev => prev.filter(c => c.id !== colorId));
         setTicks(prev => {
           const newTicks = {};
           for (const [date, colorIds] of Object.entries(prev)) {
@@ -284,21 +254,25 @@ export default function App() {
     });
   }
 
-  const unusedColors = MASTER_PALETTE.filter(
-    master => !activeColors.some(active => active.hex === master.hex)
-  );
+  // Resetuj bieżący miesiąc – przywraca jeden task, czyści ticki i notatki
+  function resetCurrentMonth() {
+    const key = currentMonthKey;
+    if (!key) return;
+    setCustomModal({
+      open: true,
+      title: "Reset miesiąca",
+      message: `Czy na pewno chcesz zresetować miesiąc ${MONTHS_PL[viewMonth]} ${viewYear}? Wszystkie taski, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden task (Task 1).`,
+      onConfirm: () => {
+        const newData = getDefaultMonthData();
+        setMonthsData(prev => ({ ...prev, [key]: newData }));
+        // Lokalne stany zostaną zaktualizowane przez useEffect
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+      },
+      showCancel: true,
+    });
+  }
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (addButtonRef.current && !addButtonRef.current.contains(event.target)) {
-        const paletteDiv = document.getElementById("add-palette-panel");
-        if (paletteDiv && !paletteDiv.contains(event.target)) setShowAddPalette(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
+  // ---------- OPERACJE NA NOTATKACH ----------
   function openNoteModal() {
     if (!selectedDate) {
       showCustomAlert("Brak wyboru", "Najpierw kliknij na dowolny dzień w kalendarzu.");
@@ -348,7 +322,7 @@ export default function App() {
     setCustomModal({
       open: true,
       title: "Potwierdzenie",
-      message: "Czy na pewno usunąć notatkę?",
+      message: "Czy na pewno usunąć notatkę z tego dnia?",
       onConfirm: () => {
         setNotes(prev => {
           const { [selectedDate]: _, ...rest } = prev;
@@ -370,17 +344,9 @@ export default function App() {
     });
   }
 
+  // ---------- EKSPORT / IMPORT ----------
   function exportData() {
-    const exportState = {
-      activeColors,
-      ticks,
-      labels,
-      activeColorId,
-      notes,
-      selectedDate,
-      version: 5,
-    };
-    const dataStr = JSON.stringify(exportState, null, 2);
+    const dataStr = JSON.stringify({ version: 6, monthsData }, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -396,13 +362,12 @@ export default function App() {
       try {
         const imported = JSON.parse(e.target.result);
         if (!imported || typeof imported !== "object") throw new Error("Nieprawidłowy format");
-        if (imported.activeColors && Array.isArray(imported.activeColors)) setActiveColors(imported.activeColors);
-        if (imported.ticks) setTicks(imported.ticks);
-        if (imported.labels) setLabels(imported.labels);
-        if (imported.activeColorId) setActiveColorId(imported.activeColorId);
-        if (imported.notes) setNotes(imported.notes);
-        if (imported.selectedDate) setSelectedDate(imported.selectedDate);
-        showCustomAlert("Sukces", "Dane zostały zaimportowane.");
+        if (imported.version === 6 && imported.monthsData) {
+          setMonthsData(imported.monthsData);
+          showCustomAlert("Sukces", "Dane zostały zaimportowane.");
+        } else {
+          throw new Error("Nieprawidłowy format pliku backupu.");
+        }
       } catch (err) {
         showCustomAlert("Błąd", "Plik nie jest prawidłowym backupem.");
       }
@@ -416,19 +381,41 @@ export default function App() {
     e.target.value = null;
   }
 
-  function resetAllData() {
+  // ---------- RESET GLOBALNY (wszystkie miesiące) ----------
+  function resetAllMonths() {
     setCustomModal({
       open: true,
       title: "Reset wszystkich danych",
-      message: "Czy na pewno chcesz przywrócić domyślne ustawienia? Wszystkie Twoje taski, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden task (Task 1).",
+      message: "Czy na pewno chcesz usunąć dane ze wszystkich miesięcy? Zostanie utworzony tylko bieżący miesiąc z jednym taskiem.",
       onConfirm: () => {
-        resetToDefault();
+        const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+        const defaultData = getDefaultMonthData();
+        setMonthsData({ [defaultKey]: defaultData });
         setCustomModal({ open: false, title: "", message: "", onConfirm: null });
       },
       showCancel: true,
     });
   }
 
+  // ---------- OBLICZANIE LICZNIKÓW (dla bieżącego miesiąca) ----------
+  const counts = {};
+  colors.forEach(c => { counts[c.id] = 0; });
+  Object.entries(ticks).forEach(([key, colorIds]) => {
+    const [y, m] = key.split("-").map(Number);
+    if (y === viewYear && m === viewMonth + 1) {
+      colorIds.forEach(cid => { counts[cid] = (counts[cid] || 0) + 1; });
+    }
+  });
+
+  const totalCounts = {};
+  colors.forEach(c => { totalCounts[c.id] = 0; });
+  Object.values(ticks).forEach(colorIds => {
+    colorIds.forEach(cid => { totalCounts[cid] = (totalCounts[cid] || 0) + 1; });
+  });
+
+  // ---------- RENDER KALENDARZA ----------
+  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+  const offset = getFirstDayOffset(viewYear, viewMonth);
   const cells = [];
   for (let i = 0; i < offset; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -439,6 +426,24 @@ export default function App() {
 
   const hasNoteForSelected = selectedDate && notes[selectedDate];
 
+  // ---------- Nieużywane kolory z palety (dla bieżącego miesiąca) ----------
+  const unusedColors = MASTER_PALETTE.filter(
+    master => !colors.some(active => active.hex === master.hex)
+  );
+
+  // Zamknij paletę po kliknięciu poza nią
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (addButtonRef.current && !addButtonRef.current.contains(event.target)) {
+        const paletteDiv = document.getElementById("add-palette-panel");
+        if (paletteDiv && !paletteDiv.contains(event.target)) setShowAddPalette(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ---------- RENDER ----------
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 0 40px" }}>
       {/* Nagłówek */}
@@ -459,7 +464,7 @@ export default function App() {
         </div>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", alignItems: "center", position: "relative" }}>
-          {activeColors.map(c => (
+          {colors.map(c => (
             <button
               key={c.id}
               onClick={() => setActiveColorId(c.id)}
@@ -476,7 +481,7 @@ export default function App() {
               }}
             />
           ))}
-          {activeColors.length < MAX_COLORS && (
+          {colors.length < MAX_COLORS && (
             <button
               ref={addButtonRef}
               onClick={() => setShowAddPalette(prev => !prev)}
@@ -559,7 +564,7 @@ export default function App() {
             if (!day) return <div key={`e${i}`} />;
             const key = dateKey(day);
             const tickColorIds = ticks[key] || [];
-            const colorHexes = tickColorIds.map(id => activeColors.find(c => c.id === id)?.hex).filter(Boolean);
+            const colorHexes = tickColorIds.map(id => colors.find(c => c.id === id)?.hex).filter(Boolean);
             const today_ = isToday(day);
             const colIndex = i % 7;
             const isWeekend = colIndex === 5 || colIndex === 6;
@@ -640,7 +645,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Panel notatek */}
+      {/* Panel notatek + Reset miesiąca */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -650,7 +655,7 @@ export default function App() {
           marginBottom: 10,
           textTransform: "uppercase",
         }}>
-          Notatki
+          Notatki i zarządzanie miesiącem
         </div>
         <div style={{
           display: "flex",
@@ -661,13 +666,18 @@ export default function App() {
         }}>
           {hasNoteForSelected ? (
             <>
-              <button onClick={openNoteModal} style={{ ...wideNoteButton, flex: 1 }}>✏️ Edytuj notatkę</button>
-              <button onClick={viewNote} style={{ ...wideNoteButton, flex: 1 }}>👁️ Zobacz notatkę</button>
-              <button onClick={deleteNote} style={{ ...wideNoteButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ Usuń notatkę</button>
+              <button onClick={openNoteModal} style={{ ...wideButton, flex: 1 }}>✏️ Edytuj notatkę</button>
+              <button onClick={viewNote} style={{ ...wideButton, flex: 1 }}>👁️ Zobacz notatkę</button>
+              <button onClick={deleteNote} style={{ ...wideButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ Usuń notatkę</button>
             </>
           ) : (
-            <button onClick={openNoteModal} style={{ ...wideNoteButton, width: "100%" }}>📝 Dodaj notatkę</button>
+            <button onClick={openNoteModal} style={{ ...wideButton, width: "100%" }}>📝 Dodaj notatkę</button>
           )}
+        </div>
+        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <button onClick={resetCurrentMonth} style={{ ...wideButton, flex: 1, background: "#2a2a2a", borderColor: "#a00" }}>
+            🔄 Resetuj miesiąc
+          </button>
         </div>
         {selectedDate && (
           <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
@@ -676,7 +686,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Lista tasków */}
+      {/* Lista tasków w bieżącym miesiącu */}
       <div style={{ padding: "0 16px" }}>
         <div style={{
           fontFamily: "'DM Mono', monospace",
@@ -686,10 +696,10 @@ export default function App() {
           marginBottom: 10,
           textTransform: "uppercase",
         }}>
-          Ten miesiąc · Łącznie
+          Taski w tym miesiącu · Ten miesiąc · Łącznie
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {activeColors.map(c => (
+          {colors.map(c => (
             <div key={c.id} style={{
               display: "flex",
               alignItems: "center",
@@ -708,8 +718,11 @@ export default function App() {
                   autoFocus
                   value={labelDraft}
                   onChange={e => setLabelDraft(e.target.value)}
-                  onBlur={commitLabel}
-                  onKeyDown={e => { if (e.key === "Enter") commitLabel(); if (e.key === "Escape") setEditingLabel(null); }}
+                  onBlur={() => {
+                    setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() }));
+                    setEditingLabel(null);
+                  }}
+                  onKeyDown={e => { if (e.key === "Enter") { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); } if (e.key === "Escape") setEditingLabel(null); }}
                   onClick={e => e.stopPropagation()}
                   placeholder={c.defaultLabel}
                   style={{
@@ -726,7 +739,7 @@ export default function App() {
               ) : (
                 <span
                   style={{ flex: 1, fontSize: 14, color: "#c0c0c0" }}
-                  onDoubleClick={e => { e.stopPropagation(); startEditLabel(c.id); }}
+                  onDoubleClick={e => { e.stopPropagation(); setEditingLabel(c.id); setLabelDraft(labels[c.id] || ""); }}
                   title="Kliknij dwukrotnie, aby edytować nazwę taska"
                 >
                   {getLabel(c.id)}
@@ -750,7 +763,7 @@ export default function App() {
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = "#ff8888"}
                 onMouseLeave={e => e.currentTarget.style.color = "#666"}
-                title="Usuń task"
+                title="Usuń task z tego miesiąca"
               >
                 ✕
               </button>
@@ -759,7 +772,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* STOPKA */}
+      {/* STOPKA – Eksport / Import / Reset globalny */}
       <div style={{
         marginTop: 32,
         borderTop: "1px solid #2a2a2a",
@@ -771,17 +784,17 @@ export default function App() {
           justifyContent: "center",
           flexWrap: "wrap",
         }}>
-          <button onClick={resetAllData} style={footerButton}>🔄 Resetuj wszystko</button>
           <button onClick={exportData} style={footerButton}>📤 Eksportuj</button>
           <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 Importuj</button>
+          <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 Resetuj wszystko</button>
           <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
         </div>
         <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-          Backup i przywracanie danych
+          Backup i przywracanie danych (wszystkie miesiące)
         </div>
       </div>
 
-      {/* MODALE... */}
+      {/* MODALE (bez zmian) */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -871,12 +884,13 @@ export default function App() {
   );
 }
 
+// ---------- STYLE ----------
 const navBtnStyle = {
   background: "none", border: "none", color: "#888", fontSize: 26,
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 
-const wideNoteButton = {
+const wideButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
   borderRadius: 40,
