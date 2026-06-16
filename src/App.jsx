@@ -134,10 +134,10 @@ export default function App() {
     active: false,
     targetYear: null,
     targetMonth: null,
-    startTranslate: 0,
-    endTranslate: 0,
+    swap: false, // czy zamienić kolejność dzieci (dla prev)
   });
   const isSlidingRef = useRef(false);
+  const slideContainerRef = useRef(null);
 
   const [colors, setColors] = useState([]);
   const [ticks, setTicks] = useState({});
@@ -181,38 +181,47 @@ export default function App() {
         else newMonth--;
       }
 
-      const startTranslate = direction === 1 ? 0 : -100;
-      const endTranslate = direction === 1 ? -100 : 0;
+      // Ustawienie pozycji i kolejności w zależności od kierunku
+      const swap = direction === -1; // przy prev zamieniamy strony (target po lewej)
+      const startTranslate = swap ? -100 : 0;
+      const endTranslate = swap ? 0 : -100;
 
       setSlide({
         active: true,
         targetYear: newYear,
         targetMonth: newMonth,
-        startTranslate,
-        endTranslate,
+        swap,
       });
 
-      // Po zakończeniu animacji (300 ms) podmieniamy widok
-      setTimeout(() => {
-        // Wyłączamy transition, żeby uniknąć skoku
-        setSlide(prev => ({
-          ...prev,
-          active: true,
-          endTranslate: 0, // tymczasowo ustawiamy na 0, aby po resecie był na swoim miejscu
-        }));
-        requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = slideContainerRef.current;
+        if (!container) return;
+        // Bez transition, ustawiamy pozycję startową
+        container.style.transition = "none";
+        container.style.transform = `translateX(${startTranslate}%)`;
+        container.offsetHeight; // reflow
+        // Włączamy transition i przesuwamy do pozycji końcowej
+        container.style.transition = "transform 0.4s ease";
+        container.style.transform = `translateX(${endTranslate}%)`;
+
+        // Po zakończeniu animacji podmieniamy miesiąc
+        setTimeout(() => {
           setViewYear(newYear);
           setViewMonth(newMonth);
           setSlide({
             active: false,
             targetYear: null,
             targetMonth: null,
-            startTranslate: 0,
-            endTranslate: 0,
+            swap: false,
           });
           isSlidingRef.current = false;
-        });
-      }, 300);
+          // Reset transform
+          if (slideContainerRef.current) {
+            slideContainerRef.current.style.transition = "none";
+            slideContainerRef.current.style.transform = "translateX(0%)";
+          }
+        }, 400);
+      });
     },
     [viewYear, viewMonth]
   );
@@ -224,7 +233,6 @@ export default function App() {
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const touchStartTime = useRef(null);
-  const isSwiping = useRef(false);
   const SWIPE_THRESHOLD = 60;
   const SWIPE_MAX_Y = 100;
   const SWIPE_MAX_TIME = 400;
@@ -237,7 +245,6 @@ export default function App() {
       touchStartX.current = e.changedTouches[0].screenX;
       touchStartY.current = e.changedTouches[0].screenY;
       touchStartTime.current = Date.now();
-      isSwiping.current = false;
     }
 
     function onTouchMove(e) {
@@ -248,7 +255,7 @@ export default function App() {
       const diffY = Math.abs(touchStartY.current - currentY);
 
       if (diffX > 15 && diffX > diffY * 1.5) {
-        isSwiping.current = true;
+        e.preventDefault?.(); // zapobiegaj domyślnemu przewijaniu podczas swipe
       }
     }
 
@@ -279,8 +286,8 @@ export default function App() {
       }
     }
 
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: false });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd, { passive: true });
 
     return () => {
@@ -619,8 +626,6 @@ export default function App() {
   };
 
   // ---------- RENDEROWANIE CAŁEJ STRONY MIESIĄCA ----------
-  // Funkcja renderująca zawartość dla podanych roku i miesiąca.
-  // isInteractive – czy strona ma być interaktywna (tylko bieżący, nie podczas slajdu)
   const renderMonthPage = (year, month, isInteractive) => {
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthData = monthsData?.[monthKey] || { ticks: {}, notes: {} };
@@ -899,7 +904,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Lista tasków w bieżącym miesiącu (tylko interaktywna strona) */}
+        {/* Lista tasków */}
         {isInteractive && (
           <div style={{ padding: "0 16px" }}>
             <div style={{
@@ -985,7 +990,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Przycisk przenoszenia tasków */}
             <div style={{ marginTop: 12 }}>
               <button
                 onClick={() => setTransferModalOpen(true)}
@@ -1002,7 +1006,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Stopka – tylko interaktywna */}
+        {/* Stopka */}
         {isInteractive && (
           <div style={{
             marginTop: 32,
@@ -1032,30 +1036,42 @@ export default function App() {
   // ---------- RENDER GŁÓWNY ----------
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", touchAction: "pan-y" }}>
-      {/* Kontener slajdu obejmujący całą zawartość */}
       <div style={{ overflow: "hidden", width: "100%" }}>
         <div
+          ref={slideContainerRef}
           style={{
             display: "flex",
             width: "200%",
-            transition: slide.active ? "transform 0.3s ease" : "none",
-            transform: `translateX(${slide.active ? slide.endTranslate : 0}%)`,
           }}
         >
-          {/* Bieżący miesiąc */}
-          <div style={{ width: "50%", flexShrink: 0 }}>
-            {renderMonthPage(viewYear, viewMonth, !slide.active)}
-          </div>
-          {/* Docelowy miesiąc (tylko podczas animacji) */}
-          {slide.active && (
-            <div style={{ width: "50%", flexShrink: 0 }}>
-              {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
-            </div>
+          {/* Kolejność dzieci zależy od slide.swap */}
+          {slide.active && slide.swap ? (
+            // Poprzedni miesiąc: target po lewej, current po prawej
+            <>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
+              </div>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                {renderMonthPage(viewYear, viewMonth, false)}
+              </div>
+            </>
+          ) : (
+            // Następny miesiąc (lub brak animacji): current po lewej, target po prawej
+            <>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                {renderMonthPage(viewYear, viewMonth, !slide.active)}
+              </div>
+              {slide.active && (
+                <div style={{ width: "50%", flexShrink: 0 }}>
+                  {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Modale (poza kontenerem slajdu, są fixed) */}
+      {/* Modale (poza kontenerem slajdu, fixed) */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
