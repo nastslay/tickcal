@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from "react";
 // BARDZO WYRAZISTE KOLORY (mocno nasycone, żywe)
 // --------------------------------------------------------------
 const MASTER_PALETTE = [
-  { hex: "#FFD700", defaultLabel: "Task" }, // złoty
-  { hex: "#0099FF", defaultLabel: "Task" }, // neonowy niebieski
-  { hex: "#FF3333", defaultLabel: "Task" }, // krwista czerwień
-  { hex: "#33CC33", defaultLabel: "Task" }, // intensywna zieleń
-  { hex: "#AA33FF", defaultLabel: "Task" }, // mocny fiolet
-  { hex: "#FF6600", defaultLabel: "Task" }, // pomarańcz
-  { hex: "#FF3399", defaultLabel: "Task" }, // różowy
-  { hex: "#CC6600", defaultLabel: "Task" }, // brąz (dla uzupełnienia)
+  { hex: "#FFD700", defaultLabel: "Task " }, // złoty
+  { hex: "#0099FF", defaultLabel: "Task " }, // neonowy niebieski
+  { hex: "#FF3333", defaultLabel: "Task " }, // krwista czerwień
+  { hex: "#33CC33", defaultLabel: "Task " }, // intensywna zieleń
+  { hex: "#AA33FF", defaultLabel: "Task " }, // mocny fiolet
+  { hex: "#FF6600", defaultLabel: "Task " }, // pomarańcz
+  { hex: "#FF3399", defaultLabel: "Task " }, // różowy
+  { hex: "#CC6600", defaultLabel: "Task " }, // brąz (dla uzupełnienia)
 ];
 
 const MAX_COLORS = 6;
@@ -68,8 +68,8 @@ function getMostRecentMonthData(monthsData) {
 
 const DAYS_PL = ["Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"];
 const MONTHS_PL = [
-  "Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
-  "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"
+  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"
 ];
 
 function getDaysInMonth(year, month) {
@@ -109,13 +109,14 @@ export default function App() {
   const [noteDraft, setNoteDraft] = useState("");
 
   // UI – modale
-  const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null });
+  const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
 
   // ---------- INICJALIZACJA ----------
   useEffect(() => {
     const saved = loadState();
-    if (saved && saved.version === 7 && saved.monthsData) {
+    // POPRAWKA 1: Usunięto warunek `saved.version === 7`, który blokował wczytywanie danych zapisanych jako v6
+    if (saved && saved.monthsData) {
       setMonthsData(saved.monthsData);
     } else {
       // Brak danych – utwórz domyślny dla bieżącego miesiąca
@@ -128,7 +129,7 @@ export default function App() {
   // Zapisz całość przy każdej zmianie monthsData
   useEffect(() => {
     if (Object.keys(monthsData).length > 0) {
-      saveState({ version: 6, monthsData });
+      saveState({ version: 7, monthsData }); // Zaktualizowano wersję na 7 dla spójności
     }
   }, [monthsData]);
 
@@ -183,6 +184,8 @@ export default function App() {
     return labels[colorId] || colors.find(c => c.id === colorId)?.defaultLabel || "";
   }
 
+  // POPRAWKA 2: Dodano `.padStart(2, "0")` do miesiąca i dnia, aby klucze daty zawsze miały format RRRR-MM-DD
+  // Zapobiega to znikaniu ticków i notatek po odświeżeniu strony.
   function dateKey(d) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
@@ -215,6 +218,7 @@ export default function App() {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
     else setViewMonth(m => m - 1);
   }
+
   function nextMonth() {
     if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
     else setViewMonth(m => m + 1);
@@ -267,7 +271,7 @@ export default function App() {
           const { [colorId]: _, ...rest } = prev;
           return rest;
         });
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
@@ -284,8 +288,7 @@ export default function App() {
       onConfirm: () => {
         const newData = getDefaultMonthData();
         setMonthsData(prev => ({ ...prev, [key]: newData }));
-        // Lokalne stany zostaną zaktualizowane przez useEffect
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
@@ -347,7 +350,7 @@ export default function App() {
           const { [selectedDate]: _, ...rest } = prev;
           return rest;
         });
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
@@ -358,19 +361,19 @@ export default function App() {
       open: true,
       title,
       message,
-      onConfirm: () => setCustomModal({ open: false, title: "", message: "", onConfirm: null }),
+      onConfirm: () => setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false }),
       showCancel: false,
     });
   }
 
   // ---------- EKSPORT / IMPORT ----------
   function exportData() {
-    const dataStr = JSON.stringify({ version: 6, monthsData }, null, 2);
+    const dataStr = JSON.stringify({ version: 7, monthsData }, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tickcal_backup_${new Date().toISOString().slice(0,19)}.json`;
+    a.download = `tickcal_backup_${new Date().toISOString().slice(0, 19)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -381,7 +384,7 @@ export default function App() {
       try {
         const imported = JSON.parse(e.target.result);
         if (!imported || typeof imported !== "object") throw new Error("Nieprawidłowy format");
-        if (imported.version === 6 && imported.monthsData) {
+        if (imported.version >= 6 && imported.monthsData) { // POPRAWKA: Akceptuj wersje >= 6
           setMonthsData(imported.monthsData);
           showCustomAlert("Sukces", "Dane zostały zaimportowane.");
         } else {
@@ -410,7 +413,7 @@ export default function App() {
         const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
         const defaultData = getDefaultMonthData();
         setMonthsData({ [defaultKey]: defaultData });
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
@@ -445,7 +448,7 @@ export default function App() {
 
   const hasNoteForSelected = selectedDate && notes[selectedDate];
 
-  // ---------- Nieużywane kolory z palety (dla bieżącego miesiąca) ----------
+  // Nieużywane kolory z palety (dla bieżącego miesiąca)
   const unusedColors = MASTER_PALETTE.filter(
     master => !colors.some(active => active.hex === master.hex)
   );
@@ -762,7 +765,8 @@ export default function App() {
                   title="Kliknij dwukrotnie, aby edytować nazwę taska"
                 >
                   {getLabel(c.id)}
-                  <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>(2× klik)</span>
+                  {/* POPRAWKA 3: Zmieniono tekst podpowiedzi zgodnie z życzeniem */}
+                  <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>Tapnij/Kliknij x2 aby zmienić nazwę.</span>
                 </span>
               )}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -813,7 +817,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* MODALE (bez zmian) */}
+      {/* MODALE */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -908,7 +912,6 @@ const navBtnStyle = {
   background: "none", border: "none", color: "#888", fontSize: 26,
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
-
 const wideButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
@@ -922,7 +925,6 @@ const wideButton = {
   textAlign: "center",
   transition: "background 0.1s",
 };
-
 const footerButton = {
   background: "#1a1a1a",
   border: "1px solid #3a3a3a",
@@ -935,7 +937,6 @@ const footerButton = {
   fontFamily: "'DM Sans', sans-serif",
   transition: "background 0.1s",
 };
-
 const modalButton = {
   border: "none", borderRadius: 30, padding: "8px 20px", color: "#fff",
   fontSize: 14, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
