@@ -1,21 +1,21 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // --------------------------------------------------------------
 // BARDZO WYRAZISTE KOLORY (mocno nasycone, żywe)
 // --------------------------------------------------------------
 const MASTER_PALETTE = [
-  { hex: "#FFD700", defaultLabel: "Task " }, // złoty
-  { hex: "#0099FF", defaultLabel: "Task " }, // neonowy niebieski
-  { hex: "#FF3333", defaultLabel: "Task " }, // krwista czerwień
-  { hex: "#33CC33", defaultLabel: "Task " }, // intensywna zieleń
-  { hex: "#AA33FF", defaultLabel: "Task " }, // mocny fiolet
-  { hex: "#FF6600", defaultLabel: "Task " }, // pomarańcz
-  { hex: "#FF3399", defaultLabel: "Task " }, // różowy
-  { hex: "#CC6600", defaultLabel: "Task " }, // brąz (dla uzupełnienia)
+  { hex: "#FFD700", defaultLabel: "Task " },
+  { hex: "#0099FF", defaultLabel: "Task " },
+  { hex: "#FF3333", defaultLabel: "Task " },
+  { hex: "#33CC33", defaultLabel: "Task " },
+  { hex: "#AA33FF", defaultLabel: "Task " },
+  { hex: "#FF6600", defaultLabel: "Task " },
+  { hex: "#FF3399", defaultLabel: "Task " },
+  { hex: "#CC6600", defaultLabel: "Task " },
 ];
 
 const MAX_COLORS = 6;
-const STORAGE_KEY = "tickcal_v8"; // v8 – POPRAWKA: nowy klucz, aby uniknąć konfliktów ze starymi uszkodzonymi danymi
+const STORAGE_KEY = "tickcal_v8";
 
 // ---------- POMOCNICZE FUNKCJE ----------
 function loadState() {
@@ -32,13 +32,11 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-// POPRAWKA: Funkcja migracji – naprawia stare klucze dat bez padStart
 function migrateData(data) {
   if (!data || !data.monthsData) return data;
 
   const newMonthsData = {};
   for (const [monthKey, monthData] of Object.entries(data.monthsData)) {
-    // Migracja ticks – napraw klucze dat
     const newTicks = {};
     if (monthData.ticks) {
       for (const [dateKey, value] of Object.entries(monthData.ticks)) {
@@ -52,7 +50,6 @@ function migrateData(data) {
       }
     }
 
-    // Migracja notes – napraw klucze dat
     const newNotes = {};
     if (monthData.notes) {
       for (const [dateKey, value] of Object.entries(monthData.notes)) {
@@ -76,7 +73,6 @@ function migrateData(data) {
   return { ...data, monthsData: newMonthsData };
 }
 
-// Domyślne dane dla nowego miesiąca (jeden task "Task 1")
 function getDefaultMonthData() {
   const defaultColor = {
     id: Date.now() + Math.random(),
@@ -92,10 +88,9 @@ function getDefaultMonthData() {
   };
 }
 
-// POPRAWKA: Głęboka kopia colors, aby miesiące nie dzieliły referencji
 function getInheritedMonthData(sourceData) {
   return {
-    colors: sourceData.colors.map(c => ({ ...c })), // GŁĘBOKA KOPIA każdego koloru
+    colors: sourceData.colors.map(c => ({ ...c })),
     ticks: {},
     labels: { ...sourceData.labels },
     notes: {},
@@ -103,7 +98,6 @@ function getInheritedMonthData(sourceData) {
   };
 }
 
-// Znajdź najnowszy miesiąc z dostępnych danych
 function getMostRecentMonthData(monthsData) {
   const keys = Object.keys(monthsData).sort();
   if (keys.length === 0) return null;
@@ -131,48 +125,112 @@ export default function App() {
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
-  // POPRAWKA: monthsData startuje jako null (nie {}), aby rozróżnić "nie wczytano" od "pusto"
   const [monthsData, setMonthsData] = useState(null);
   const [currentMonthKey, setCurrentMonthKey] = useState(null);
-
-  // POPRAWKA: Flaga informująca czy dane zostały wczytane z localStorage
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Bieżące dane dla otwartego miesiąca
+  // Animacja slajdu – przesuwa CAŁY widok miesiąca
+  const [slide, setSlide] = useState({
+    active: false,
+    targetYear: null,
+    targetMonth: null,
+    startTranslate: 0,
+    endTranslate: 0,
+  });
+  const isSlidingRef = useRef(false);
+
   const [colors, setColors] = useState([]);
   const [ticks, setTicks] = useState({});
   const [labels, setLabels] = useState({});
   const [notes, setNotes] = useState({});
   const [activeColorId, setActiveColorId] = useState(null);
 
-  // UI – edycja etykiety
   const [editingLabel, setEditingLabel] = useState(null);
   const [labelDraft, setLabelDraft] = useState("");
   const [showAddPalette, setShowAddPalette] = useState(false);
   const addButtonRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // UI – notatki
   const [selectedDate, setSelectedDate] = useState(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
 
-  // UI – modale
   const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
-  // ---------- SWIPE (przesuwanie miesięcy palcem) ----------
+
+  // Przenoszenie tasków
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferSourceKey, setTransferSourceKey] = useState("");
+
+  // ---------- NAWIGACJA Z ANIMACJĄ ----------
+  const navigateMonth = useCallback(
+    (direction) => {
+      if (isSlidingRef.current) return;
+      isSlidingRef.current = true;
+
+      let newYear = viewYear;
+      let newMonth = viewMonth;
+
+      if (direction === 1) {
+        // następny
+        if (viewMonth === 11) { newYear++; newMonth = 0; }
+        else newMonth++;
+      } else {
+        // poprzedni
+        if (viewMonth === 0) { newYear--; newMonth = 11; }
+        else newMonth--;
+      }
+
+      const startTranslate = direction === 1 ? 0 : -100;
+      const endTranslate = direction === 1 ? -100 : 0;
+
+      setSlide({
+        active: true,
+        targetYear: newYear,
+        targetMonth: newMonth,
+        startTranslate,
+        endTranslate,
+      });
+
+      // Po zakończeniu animacji (300 ms) podmieniamy widok
+      setTimeout(() => {
+        // Wyłączamy transition, żeby uniknąć skoku
+        setSlide(prev => ({
+          ...prev,
+          active: true,
+          endTranslate: 0, // tymczasowo ustawiamy na 0, aby po resecie był na swoim miejscu
+        }));
+        requestAnimationFrame(() => {
+          setViewYear(newYear);
+          setViewMonth(newMonth);
+          setSlide({
+            active: false,
+            targetYear: null,
+            targetMonth: null,
+            startTranslate: 0,
+            endTranslate: 0,
+          });
+          isSlidingRef.current = false;
+        });
+      }, 300);
+    },
+    [viewYear, viewMonth]
+  );
+
+  function prevMonth() { navigateMonth(-1); }
+  function nextMonth() { navigateMonth(1); }
+
+  // ---------- SWIPE (przesuwanie palcem) ----------
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const touchStartTime = useRef(null);
   const isSwiping = useRef(false);
-  const SWIPE_THRESHOLD = 60;      // px – minimalna odległość
-  const SWIPE_MAX_Y = 100;         // px – max ruch w pionie
-  const SWIPE_MAX_TIME = 400;      // ms – max czas trwania swipe
+  const SWIPE_THRESHOLD = 60;
+  const SWIPE_MAX_Y = 100;
+  const SWIPE_MAX_TIME = 400;
 
-  // Rejestrujemy touch events na poziomie window dla pewności
   useEffect(() => {
     function onTouchStart(e) {
-      // Ignoruj jeśli dotykamy input, textarea, lub przycisk
       const tag = e.target.tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'button' || e.target.closest('button')) return;
 
@@ -189,12 +247,8 @@ export default function App() {
       const diffX = Math.abs(touchStartX.current - currentX);
       const diffY = Math.abs(touchStartY.current - currentY);
 
-      // Jeśli ruch jest wyraźnie poziomy, zablokuj scroll
       if (diffX > 15 && diffX > diffY * 1.5) {
         isSwiping.current = true;
-        // Nie blokujemy preventDefault bo passive listener
-        // Ale CSS touch-action: pan-y na wrapperze pozwala na vert scroll
-        // a blokujemy horiz swipe
       }
     }
 
@@ -207,23 +261,21 @@ export default function App() {
       const diffY = touchStartY.current - endY;
       const elapsed = Date.now() - touchStartTime.current;
 
-      // Reset
       touchStartX.current = null;
       touchStartY.current = null;
       touchStartTime.current = null;
 
-      // Walidacja swipe
-      if (elapsed > SWIPE_MAX_TIME) return;           // za wolno
-      if (Math.abs(diffY) > SWIPE_MAX_Y) return;      // za dużo w pionie
-      if (Math.abs(diffX) < SWIPE_THRESHOLD) return;  // za krótko
+      if (elapsed > SWIPE_MAX_TIME) return;
+      if (Math.abs(diffY) > SWIPE_MAX_Y) return;
+      if (Math.abs(diffX) < SWIPE_THRESHOLD) return;
 
       // Swipe w lewo (diffX > 0) → następny miesiąc
       if (diffX > 0) {
-        nextMonth();
+        navigateMonth(1);
       }
       // Swipe w prawo (diffX < 0) → poprzedni miesiąc
       else {
-        prevMonth();
+        navigateMonth(-1);
       }
     }
 
@@ -238,26 +290,20 @@ export default function App() {
     };
   }, [viewYear, viewMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-
-  // ---------- INICJALIZACJA ----------
-  // POPRAWKA: JEDEN effect inicjalizacyjny – wczytuje dane i ustawia flagę
+  // ---------- INICJALIZACJA DANYCH ----------
   useEffect(() => {
     const saved = loadState();
     if (saved && saved.monthsData) {
-      // POPRAWKA: Migracja starych kluczy dat (bez padStart) na nowe
       const migrated = migrateData(saved);
       setMonthsData(migrated.monthsData);
     } else {
-      // Brak danych – utwórz domyślny dla bieżącego miesiąca
       const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
       const defaultData = getDefaultMonthData();
       setMonthsData({ [defaultKey]: defaultData });
     }
-    setIsDataLoaded(true); // Oznaczamy że inicjalizacja zakończona
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    setIsDataLoaded(true);
+  }, []); // eslint-disable-line
 
-  // Zapisz całość przy każdej zmianie monthsData
-  // POPRAWKA: Nie zapisuj dopóki dane nie zostały wczytane
   useEffect(() => {
     if (!isDataLoaded || monthsData === null) return;
     if (Object.keys(monthsData).length > 0) {
@@ -265,8 +311,6 @@ export default function App() {
     }
   }, [monthsData, isDataLoaded]);
 
-  // Aktualizuj currentMonthKey i wczytaj dane dla bieżącego miesiąca
-  // POPRAWKA: Nie wykonuj dopóki dane nie zostały wczytane z localStorage
   useEffect(() => {
     if (!isDataLoaded || monthsData === null) return;
 
@@ -274,7 +318,6 @@ export default function App() {
     setCurrentMonthKey(key);
     let data = monthsData[key];
     if (!data) {
-      // Nowy miesiąc – odziedzicz taski z poprzedniego miesiąca lub utwórz domyślny
       const recentData = getMostRecentMonthData(monthsData);
       data = recentData ? getInheritedMonthData(recentData) : getDefaultMonthData();
       setMonthsData(prev => ({ ...prev, [key]: data }));
@@ -286,7 +329,6 @@ export default function App() {
     setActiveColorId(data.activeColorId);
   }, [monthsData, viewYear, viewMonth, isDataLoaded]);
 
-  // Zapisuj zmiany w bieżącym miesiącu do monthsData
   useEffect(() => {
     if (!currentMonthKey || !isDataLoaded || monthsData === null) return;
     const data = {
@@ -299,12 +341,11 @@ export default function App() {
     setMonthsData(prev => ({ ...prev, [currentMonthKey]: data }));
   }, [colors, ticks, labels, notes, activeColorId, currentMonthKey, isDataLoaded]);
 
-  // ---------- FUNKCJE POMOCNICZE ----------
+  // ---------- POZOSTAŁE HANDLERY ----------
   function getTaskNumberFromLabel(label) {
     const match = label.match(/Task (\d+)/);
     return match ? parseInt(match[1], 10) : 0;
   }
-
   function getNextTaskNumber() {
     let maxNum = 0;
     colors.forEach(c => {
@@ -314,20 +355,16 @@ export default function App() {
     });
     return maxNum + 1;
   }
-
   function getLabel(colorId) {
     return labels[colorId] || colors.find(c => c.id === colorId)?.defaultLabel || "";
   }
-
   function dateKey(d) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
 
-  // ---------- HANDLERY ----------
   function handleDayClick(day) {
     const key = dateKey(day);
     if (selectedDate === key) {
-      // Drugie kliknięcie – dodaj/usuń ticka
       if (activeColorId) {
         setTicks(prev => {
           const current = prev[key] || [];
@@ -342,22 +379,10 @@ export default function App() {
         });
       }
     } else {
-      // Pierwsze kliknięcie – tylko zaznacz dzień
       setSelectedDate(key);
     }
   }
 
-  function prevMonth() {
-    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
-    else setViewMonth(m => m - 1);
-  }
-
-  function nextMonth() {
-    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
-    else setViewMonth(m => m + 1);
-  }
-
-  // ---------- OPERACJE NA TASKACH (BIEŻĄCY MIESIĄC) ----------
   function addColorFromPalette(paletteColor) {
     if (colors.length >= MAX_COLORS) {
       showCustomAlert("Ograniczenie", `Możesz dodać maksymalnie ${MAX_COLORS} tasków w tym miesiącu.`);
@@ -382,7 +407,7 @@ export default function App() {
 
   function deleteColor(colorId) {
     if (colors.length <= 1) {
-      showCustomAlert("Uwaga", "W tym miesiącu musi pozostać przynajmniej jeden task. Możesz użyć Resetu miesiąca, aby przywrócić domyślne ustawienia.");
+      showCustomAlert("Uwaga", "W tym miesiącu musi pozostać przynajmniej jeden task.");
       return;
     }
     const taskName = getLabel(colorId);
@@ -410,7 +435,6 @@ export default function App() {
     });
   }
 
-  // Resetuj bieżący miesiąc – przywraca jeden task, czyści ticki i notatki
   function resetCurrentMonth() {
     const key = currentMonthKey;
     if (!key) return;
@@ -537,7 +561,6 @@ export default function App() {
     e.target.value = null;
   }
 
-  // ---------- RESET GLOBALNY (wszystkie miesiące) ----------
   function resetAllMonths() {
     setCustomModal({
       open: true,
@@ -553,7 +576,7 @@ export default function App() {
     });
   }
 
-  // ---------- OBLICZANIE LICZNIKÓW (dla bieżącego miesiąca) ----------
+  // ---------- OBLICZANIE LICZNIKÓW ----------
   const counts = {};
   colors.forEach(c => { counts[c.id] = 0; });
   Object.entries(ticks).forEach(([key, colorIds]) => {
@@ -569,388 +592,470 @@ export default function App() {
     colorIds.forEach(cid => { totalCounts[cid] = (totalCounts[cid] || 0) + 1; });
   });
 
-  // ---------- RENDER KALENDARZA ----------
-  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
-  const offset = getFirstDayOffset(viewYear, viewMonth);
-  const cells = [];
-  for (let i = 0; i < offset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
+  // ---------- TRANSFER TASKÓW ----------
+  const handleTransferTasks = () => {
+    if (!transferSourceKey || !monthsData[transferSourceKey]) return;
 
-  const isToday = (d) =>
-    d && viewYear === today.getFullYear() && viewMonth === today.getMonth() && d === today.getDate();
+    const sourceData = monthsData[transferSourceKey];
+    const newColors = [];
+    const newLabels = {};
 
-  const hasNoteForSelected = selectedDate && notes[selectedDate];
+    sourceData.colors.forEach((srcColor) => {
+      const newId = Date.now() + Math.random();
+      newColors.push({
+        ...srcColor,
+        id: newId,
+        defaultLabel: srcColor.defaultLabel,
+      });
+      newLabels[newId] = sourceData.labels[srcColor.id] || srcColor.defaultLabel;
+    });
 
-  // Nieużywane kolory z palety (dla bieżącego miesiąca)
-  const unusedColors = MASTER_PALETTE.filter(
-    master => !colors.some(active => active.hex === master.hex)
-  );
+    setColors(newColors);
+    setLabels(newLabels);
+    setActiveColorId(newColors.length > 0 ? newColors[0].id : null);
 
-  // Zamknij paletę po kliknięciu poza nią
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (addButtonRef.current && !addButtonRef.current.contains(event.target)) {
-        const paletteDiv = document.getElementById("add-palette-panel");
-        if (paletteDiv && !paletteDiv.contains(event.target)) setShowAddPalette(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    setTransferModalOpen(false);
+    setTransferSourceKey("");
+  };
 
-  // ---------- RENDER ----------
-  return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 0 40px", touchAction: "pan-y" }}>
-      {/* Nagłówek */}
-      <div style={{
-        background: "#1a1a1a",
-        borderBottom: "1px solid #2a2a2a",
-        padding: "20px 20px 16px",
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <button onClick={prevMonth} style={navBtnStyle}>‹</button>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
-            {MONTHS_PL[viewMonth]} {viewYear}
-          </span>
-          <button onClick={nextMonth} style={navBtnStyle}>›</button>
-        </div>
+  // ---------- RENDEROWANIE CAŁEJ STRONY MIESIĄCA ----------
+  // Funkcja renderująca zawartość dla podanych roku i miesiąca.
+  // isInteractive – czy strona ma być interaktywna (tylko bieżący, nie podczas slajdu)
+  const renderMonthPage = (year, month, isInteractive) => {
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const monthData = monthsData?.[monthKey] || { ticks: {}, notes: {} };
+    const monthTicks = monthData.ticks || {};
+    const monthNotes = monthData.notes || {};
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", alignItems: "center", position: "relative" }}>
-          {colors.map(c => (
+    const daysInMonth = getDaysInMonth(year, month);
+    const offset = getFirstDayOffset(year, month);
+    const cells = [];
+    for (let i = 0; i < offset; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const isToday = (d) =>
+      d && year === today.getFullYear() && month === today.getMonth() && d === today.getDate();
+
+    const unusedColors = MASTER_PALETTE.filter(
+      master => !colors.some(active => active.hex === master.hex)
+    );
+
+    return (
+      <div style={{ width: "100%", paddingBottom: 40 }}>
+        {/* Nagłówek */}
+        <div style={{
+          background: "#1a1a1a",
+          borderBottom: "1px solid #2a2a2a",
+          padding: "20px 20px 16px",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <button
-              key={c.id}
-              onClick={() => setActiveColorId(c.id)}
-              title={getLabel(c.id)}
-              style={{
-                width: 36, height: 36,
-                borderRadius: "50%",
-                background: c.hex,
-                border: activeColorId === c.id ? `3px solid #fff` : "3px solid transparent",
-                outline: activeColorId === c.id ? `2px solid ${c.hex}` : "none",
-                cursor: "pointer",
-                transform: activeColorId === c.id ? "scale(1.2)" : "scale(1)",
-                transition: "transform 0.15s, outline 0.15s",
-              }}
-            />
-          ))}
-          {colors.length < MAX_COLORS && (
-            <button
-              ref={addButtonRef}
-              onClick={() => setShowAddPalette(prev => !prev)}
-              style={{
-                width: 36, height: 36,
-                borderRadius: "50%",
-                background: "#2a2a2a",
-                border: "2px solid #444",
-                cursor: "pointer",
-                fontSize: 20,
-                fontWeight: "bold",
-                color: "#aaa",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              onClick={isInteractive ? prevMonth : undefined}
+              style={navBtnStyle}
+              disabled={!isInteractive}
             >
-              +
+              ‹
             </button>
-          )}
-          {showAddPalette && unusedColors.length > 0 && (
-            <div
-              id="add-palette-panel"
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: "50%",
-                transform: "translateX(-50%)",
-                marginTop: 12,
-                background: "#1e1e1e",
-                borderRadius: 20,
-                padding: "12px 16px",
-                display: "flex",
-                gap: 12,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                border: "1px solid #333",
-                boxShadow: "0 8px 20px rgba(0,0,0,0.5)",
-                zIndex: 20,
-                minWidth: 200,
-              }}
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
+              {MONTHS_PL[month]} {year}
+            </span>
+            <button
+              onClick={isInteractive ? nextMonth : undefined}
+              style={navBtnStyle}
+              disabled={!isInteractive}
             >
-              {unusedColors.map((color, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => addColorFromPalette(color)}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background: color.hex,
-                    border: "2px solid #fff",
-                    cursor: "pointer",
-                  }}
-                  title={color.defaultLabel}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+              ›
+            </button>
+          </div>
 
-      {/* Kalendarz */}
-      <div style={{ padding: "16px 16px 0" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
-          {DAYS_PL.map(d => (
-            <div key={d} style={{
-              textAlign: "center",
-              fontSize: 11,
-              fontWeight: 500,
-              color: d === "Sb" || d === "Nd" ? "#888" : "#666",
-              padding: "6px 0",
-              fontFamily: "'DM Mono', monospace",
-            }}>{d}</div>
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-          {cells.map((day, i) => {
-            if (!day) return <div key={`e${i}`} />;
-            const key = dateKey(day);
-            const tickColorIds = ticks[key] || [];
-            const colorHexes = tickColorIds.map(id => colors.find(c => c.id === id)?.hex).filter(Boolean);
-            const today_ = isToday(day);
-            const colIndex = i % 7;
-            const isWeekend = colIndex === 5 || colIndex === 6;
-            const hasNote = !!notes[key];
-            const isSelected = selectedDate === key;
-
-            const row1 = colorHexes.slice(0, 3);
-            const row2 = colorHexes.slice(3, 6);
-
-            return (
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", alignItems: "center", position: "relative" }}>
+            {colors.map(c => (
               <button
-                key={day}
-                onClick={() => handleDayClick(day)}
+                key={c.id}
+                onClick={() => isInteractive && setActiveColorId(c.id)}
+                title={getLabel(c.id)}
                 style={{
-                  aspectRatio: "1",
-                  borderRadius: 10,
-                  border: isSelected
-                    ? "2px solid #4D9EFF"
-                    : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
-                  background: colorHexes.length > 0 ? "#1f1f1f" : "#1a1a1a",
+                  width: 36, height: 36,
+                  borderRadius: "50%",
+                  background: c.hex,
+                  border: activeColorId === c.id ? `3px solid #fff` : "3px solid transparent",
+                  outline: activeColorId === c.id ? `2px solid ${c.hex}` : "none",
+                  cursor: isInteractive ? "pointer" : "default",
+                  transform: activeColorId === c.id ? "scale(1.2)" : "scale(1)",
+                  transition: "transform 0.15s, outline 0.15s",
+                }}
+              />
+            ))}
+            {isInteractive && colors.length < MAX_COLORS && (
+              <button
+                ref={addButtonRef}
+                onClick={() => setShowAddPalette(prev => !prev)}
+                style={{
+                  width: 36, height: 36,
+                  borderRadius: "50%",
+                  background: "#2a2a2a",
+                  border: "2px solid #444",
                   cursor: "pointer",
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  color: "#aaa",
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 4,
-                  position: "relative",
-                  transition: "background 0.12s, transform 0.1s",
-                  WebkitTapHighlightColor: "transparent",
                 }}
-                onTouchStart={e => e.currentTarget.style.transform = "scale(0.93)"}
-                onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}
-                onMouseDown={e => e.currentTarget.style.transform = "scale(0.93)"}
-                onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               >
-                {hasNote && (
-                  <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: 4,
-                    backgroundColor: "#ff4d4d",
-                    borderTopLeftRadius: 8,
-                    borderTopRightRadius: 8,
-                  }} />
-                )}
-                <span style={{
-                  fontSize: 14,
-                  fontWeight: today_ ? 600 : 400,
-                  color: isWeekend ? "#888" : (today_ ? "#fff" : "#d0d0d0"),
-                  fontFamily: "'DM Mono', monospace",
-                  lineHeight: 1,
-                }}>
-                  {day}
-                </span>
-                {colorHexes.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "center" }}>
-                    {row1.length > 0 && (
-                      <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
-                        {row1.map((hex, idx) => (
-                          <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
-                        ))}
-                      </div>
-                    )}
-                    {row2.length > 0 && (
-                      <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
-                        {row2.map((hex, idx) => (
-                          <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                +
               </button>
-            );
-          })}
+            )}
+            {showAddPalette && isInteractive && unusedColors.length > 0 && (
+              <div
+                id="add-palette-panel"
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  marginTop: 12,
+                  background: "#1e1e1e",
+                  borderRadius: 20,
+                  padding: "12px 16px",
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  border: "1px solid #333",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.5)",
+                  zIndex: 20,
+                  minWidth: 200,
+                }}
+              >
+                {unusedColors.map((color, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => addColorFromPalette(color)}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: color.hex,
+                      border: "2px solid #fff",
+                      cursor: "pointer",
+                    }}
+                    title={color.defaultLabel}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Panel notatek + Reset miesiąca */}
-      <div style={{ padding: "20px 16px 0" }}>
-        <div style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 10,
-          color: "#555",
-          letterSpacing: "0.1em",
-          marginBottom: 10,
-          textTransform: "uppercase",
-        }}>
-          Notatki i zarządzanie miesiącem
+        {/* Kalendarz */}
+        <div style={{ padding: "16px 16px 0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
+            {DAYS_PL.map(d => (
+              <div key={d} style={{
+                textAlign: "center",
+                fontSize: 11,
+                fontWeight: 500,
+                color: d === "Sb" || d === "Nd" ? "#888" : "#666",
+                padding: "6px 0",
+                fontFamily: "'DM Mono', monospace",
+              }}>{d}</div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+            {cells.map((day, i) => {
+              if (!day) return <div key={`e${i}`} />;
+              const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const tickColorIds = monthTicks[key] || [];
+              const colorHexes = tickColorIds
+                .map(id => colors.find(c => c.id === id)?.hex)
+                .filter(Boolean);
+              const today_ = isToday(day);
+              const colIndex = i % 7;
+              const isWeekend = colIndex === 5 || colIndex === 6;
+              const hasNote = !!monthNotes[key];
+              const isSelected = selectedDate === key && isInteractive;
+
+              const row1 = colorHexes.slice(0, 3);
+              const row2 = colorHexes.slice(3, 6);
+
+              return (
+                <button
+                  key={day}
+                  onClick={isInteractive ? () => handleDayClick(day) : undefined}
+                  style={{
+                    aspectRatio: "1",
+                    borderRadius: 10,
+                    border: isSelected
+                      ? "2px solid #4D9EFF"
+                      : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
+                    background: colorHexes.length > 0 ? "#1f1f1f" : "#1a1a1a",
+                    cursor: isInteractive ? "pointer" : "default",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    position: "relative",
+                    transition: "background 0.12s, transform 0.1s",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                  onTouchStart={isInteractive ? e => e.currentTarget.style.transform = "scale(0.93)" : undefined}
+                  onTouchEnd={isInteractive ? e => e.currentTarget.style.transform = "scale(1)" : undefined}
+                  onMouseDown={isInteractive ? e => e.currentTarget.style.transform = "scale(0.93)" : undefined}
+                  onMouseUp={isInteractive ? e => e.currentTarget.style.transform = "scale(1)" : undefined}
+                >
+                  {hasNote && (
+                    <div style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: 4,
+                      backgroundColor: "#ff4d4d",
+                      borderTopLeftRadius: 8,
+                      borderTopRightRadius: 8,
+                    }} />
+                  )}
+                  <span style={{
+                    fontSize: 14,
+                    fontWeight: today_ ? 600 : 400,
+                    color: isWeekend ? "#888" : (today_ ? "#fff" : "#d0d0d0"),
+                    fontFamily: "'DM Mono', monospace",
+                    lineHeight: 1,
+                  }}>
+                    {day}
+                  </span>
+                  {colorHexes.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "center" }}>
+                      {row1.length > 0 && (
+                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
+                          {row1.map((hex, idx) => (
+                            <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
+                          ))}
+                        </div>
+                      )}
+                      {row2.length > 0 && (
+                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
+                          {row2.map((hex, idx) => (
+                            <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "nowrap",
-          width: "100%",
-          marginBottom: 12,
-        }}>
-          {hasNoteForSelected ? (
-            <>
-              <button onClick={openNoteModal} style={{ ...wideButton, flex: 1 }}>✏️ Edytuj notatkę</button>
-              <button onClick={viewNote} style={{ ...wideButton, flex: 1 }}>👁️ Zobacz notatkę</button>
-              <button onClick={deleteNote} style={{ ...wideButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ Usuń notatkę</button>
-            </>
-          ) : (
-            <button onClick={openNoteModal} style={{ ...wideButton, width: "100%" }}>📝 Dodaj notatkę</button>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <button onClick={resetCurrentMonth} style={{ ...wideButton, flex: 1, background: "#2a2a2a", borderColor: "#a00" }}>
-            🔄 Resetuj miesiąc
-          </button>
-        </div>
-        {selectedDate && (
-          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
-            Wybrany dzień: {selectedDate}
+
+        {/* Panel notatek + Reset miesiąca */}
+        {isInteractive && (
+          <div style={{ padding: "20px 16px 0" }}>
+            <div style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 10,
+              color: "#555",
+              letterSpacing: "0.1em",
+              marginBottom: 10,
+              textTransform: "uppercase",
+            }}>
+              Notatki i zarządzanie miesiącem
+            </div>
+            <div style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "nowrap",
+              width: "100%",
+              marginBottom: 12,
+            }}>
+              {selectedDate && notes[selectedDate] ? (
+                <>
+                  <button onClick={openNoteModal} style={{ ...wideButton, flex: 1 }}>✏️ Edytuj notatkę</button>
+                  <button onClick={viewNote} style={{ ...wideButton, flex: 1 }}>👁️ Zobacz notatkę</button>
+                  <button onClick={deleteNote} style={{ ...wideButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ Usuń notatkę</button>
+                </>
+              ) : (
+                <button onClick={openNoteModal} style={{ ...wideButton, width: "100%" }}>📝 Dodaj notatkę</button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <button onClick={resetCurrentMonth} style={{ ...wideButton, flex: 1, background: "#2a2a2a", borderColor: "#a00" }}>
+                🔄 Resetuj miesiąc
+              </button>
+            </div>
+            {selectedDate && (
+              <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+                Wybrany dzień: {selectedDate}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Lista tasków w bieżącym miesiącu (tylko interaktywna strona) */}
+        {isInteractive && (
+          <div style={{ padding: "0 16px" }}>
+            <div style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 10,
+              color: "#555",
+              letterSpacing: "0.1em",
+              marginBottom: 10,
+              textTransform: "uppercase",
+            }}>
+              Taski w tym miesiącu · Ten miesiąc · Łącznie
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {colors.map(c => (
+                <div key={c.id} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  background: "#1a1a1a",
+                  borderRadius: 12,
+                  border: activeColorId === c.id ? `1px solid ${c.hex}66` : "1px solid #2a2a2a",
+                  cursor: "pointer",
+                }}
+                  onClick={() => setActiveColorId(c.id)}
+                >
+                  <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.hex, flexShrink: 0 }} />
+                  {editingLabel === c.id ? (
+                    <input
+                      autoFocus
+                      value={labelDraft}
+                      onChange={e => setLabelDraft(e.target.value)}
+                      onBlur={() => {
+                        setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() }));
+                        setEditingLabel(null);
+                      }}
+                      onKeyDown={e => { if (e.key === "Enter") { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); } if (e.key === "Escape") setEditingLabel(null); }}
+                      onClick={e => e.stopPropagation()}
+                      placeholder={c.defaultLabel}
+                      style={{
+                        flex: 1,
+                        background: "transparent",
+                        border: "none",
+                        borderBottom: `1px solid ${c.hex}`,
+                        outline: "none",
+                        color: "#f0f0f0",
+                        fontSize: 14,
+                        padding: "2px 0",
+                      }}
+                    />
+                  ) : (
+                    <span
+                      style={{ flex: 1, fontSize: 14, color: "#c0c0c0" }}
+                      onDoubleClick={e => { e.stopPropagation(); setEditingLabel(c.id); setLabelDraft(labels[c.id] || ""); }}
+                      title="Kliknij dwukrotnie, aby edytować nazwę taska"
+                    >
+                      {getLabel(c.id)}
+                      <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>Tapnij/Kliknij x2 aby zmienić nazwę.</span>
+                    </span>
+                  )}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500, color: c.hex, minWidth: 28, textAlign: "right" }}>
+                      {counts[c.id] || 0}
+                    </span>
+                    <span style={{ color: "#333", fontSize: 12 }}>·</span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#555", minWidth: 24, textAlign: "right" }}>
+                      {totalCounts[c.id] || 0}
+                    </span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteColor(c.id); }}
+                    style={{
+                      background: "none", border: "none", color: "#666", fontSize: 16, cursor: "pointer",
+                      padding: "0 4px", borderRadius: 20, transition: "color 0.1s", fontWeight: "bold",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#ff8888"}
+                    onMouseLeave={e => e.currentTarget.style.color = "#666"}
+                    title="Usuń task z tego miesiąca"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Przycisk przenoszenia tasków */}
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={() => setTransferModalOpen(true)}
+                style={{
+                  ...wideButton,
+                  width: "100%",
+                  background: "#2a2a2a",
+                  borderColor: "#4D9EFF",
+                }}
+              >
+                📂 Przenieś taski
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stopka – tylko interaktywna */}
+        {isInteractive && (
+          <div style={{
+            marginTop: 32,
+            borderTop: "1px solid #2a2a2a",
+            padding: "16px 16px 24px",
+          }}>
+            <div style={{
+              display: "flex",
+              gap: 12,
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}>
+              <button onClick={exportData} style={footerButton}>📤 Eksportuj</button>
+              <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 Importuj</button>
+              <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 Resetuj wszystko</button>
+              <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
+            </div>
+            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+              Backup i przywracanie danych (wszystkie miesiące)
+            </div>
           </div>
         )}
       </div>
+    );
+  };
 
-      {/* Lista tasków w bieżącym miesiącu */}
-      <div style={{ padding: "0 16px" }}>
-        <div style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 10,
-          color: "#555",
-          letterSpacing: "0.1em",
-          marginBottom: 10,
-          textTransform: "uppercase",
-        }}>
-          Taski w tym miesiącu · Ten miesiąc · Łącznie
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {colors.map(c => (
-            <div key={c.id} style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 14px",
-              background: "#1a1a1a",
-              borderRadius: 12,
-              border: activeColorId === c.id ? `1px solid ${c.hex}66` : "1px solid #2a2a2a",
-              cursor: "pointer",
-            }}
-              onClick={() => setActiveColorId(c.id)}
-            >
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.hex, flexShrink: 0 }} />
-              {editingLabel === c.id ? (
-                <input
-                  autoFocus
-                  value={labelDraft}
-                  onChange={e => setLabelDraft(e.target.value)}
-                  onBlur={() => {
-                    setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() }));
-                    setEditingLabel(null);
-                  }}
-                  onKeyDown={e => { if (e.key === "Enter") { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); } if (e.key === "Escape") setEditingLabel(null); }}
-                  onClick={e => e.stopPropagation()}
-                  placeholder={c.defaultLabel}
-                  style={{
-                    flex: 1,
-                    background: "transparent",
-                    border: "none",
-                    borderBottom: `1px solid ${c.hex}`,
-                    outline: "none",
-                    color: "#f0f0f0",
-                    fontSize: 14,
-                    padding: "2px 0",
-                  }}
-                />
-              ) : (
-                <span
-                  style={{ flex: 1, fontSize: 14, color: "#c0c0c0" }}
-                  onDoubleClick={e => { e.stopPropagation(); setEditingLabel(c.id); setLabelDraft(labels[c.id] || ""); }}
-                  title="Kliknij dwukrotnie, aby edytować nazwę taska"
-                >
-                  {getLabel(c.id)}
-                  <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>Tapnij/Kliknij x2 aby zmienić nazwę.</span>
-                </span>
-              )}
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500, color: c.hex, minWidth: 28, textAlign: "right" }}>
-                  {counts[c.id] || 0}
-                </span>
-                <span style={{ color: "#333", fontSize: 12 }}>·</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#555", minWidth: 24, textAlign: "right" }}>
-                  {totalCounts[c.id] || 0}
-                </span>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); deleteColor(c.id); }}
-                style={{
-                  background: "none", border: "none", color: "#666", fontSize: 16, cursor: "pointer",
-                  padding: "0 4px", borderRadius: 20, transition: "color 0.1s", fontWeight: "bold",
-                }}
-                onMouseEnter={e => e.currentTarget.style.color = "#ff8888"}
-                onMouseLeave={e => e.currentTarget.style.color = "#666"}
-                title="Usuń task z tego miesiąca"
-              >
-                ✕
-              </button>
+  // ---------- RENDER GŁÓWNY ----------
+  return (
+    <div style={{ maxWidth: 480, margin: "0 auto", touchAction: "pan-y" }}>
+      {/* Kontener slajdu obejmujący całą zawartość */}
+      <div style={{ overflow: "hidden", width: "100%" }}>
+        <div
+          style={{
+            display: "flex",
+            width: "200%",
+            transition: slide.active ? "transform 0.3s ease" : "none",
+            transform: `translateX(${slide.active ? slide.endTranslate : 0}%)`,
+          }}
+        >
+          {/* Bieżący miesiąc */}
+          <div style={{ width: "50%", flexShrink: 0 }}>
+            {renderMonthPage(viewYear, viewMonth, !slide.active)}
+          </div>
+          {/* Docelowy miesiąc (tylko podczas animacji) */}
+          {slide.active && (
+            <div style={{ width: "50%", flexShrink: 0 }}>
+              {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* STOPKA – Eksport / Import / Reset globalny */}
-      <div style={{
-        marginTop: 32,
-        borderTop: "1px solid #2a2a2a",
-        padding: "16px 16px 24px",
-      }}>
-        <div style={{
-          display: "flex",
-          gap: 12,
-          justifyContent: "center",
-          flexWrap: "wrap",
-        }}>
-          <button onClick={exportData} style={footerButton}>📤 Eksportuj</button>
-          <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 Importuj</button>
-          <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 Resetuj wszystko</button>
-          <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
-        </div>
-        <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-          Backup i przywracanie danych (wszystkie miesiące)
-        </div>
-      </div>
-
-      {/* MODALE */}
+      {/* Modale (poza kontenerem slajdu, są fixed) */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -1031,6 +1136,64 @@ export default function App() {
               )}
               <button onClick={() => { if (customModal.onConfirm) customModal.onConfirm(); }} style={{ ...modalButton, background: "#4D9EFF" }}>
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transferModalOpen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }} onClick={() => setTransferModalOpen(false)}>
+          <div style={{
+            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
+            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>
+              Wybierz miesiąc źródłowy
+            </h3>
+            <select
+              value={transferSourceKey}
+              onChange={(e) => setTransferSourceKey(e.target.value)}
+              style={{
+                width: "100%", background: "#0f0f0f", border: "1px solid #444",
+                borderRadius: 12, padding: 12, color: "#f0f0f0", fontSize: 14,
+                marginBottom: 20,
+              }}
+            >
+              <option value="">-- wybierz miesiąc --</option>
+              {Object.keys(monthsData)
+                .sort()
+                .filter(key => key !== currentMonthKey)
+                .map(key => {
+                  const [y, m] = key.split("-");
+                  return (
+                    <option key={key} value={key}>
+                      {MONTHS_PL[parseInt(m, 10) - 1]} {y}
+                    </option>
+                  );
+                })}
+            </select>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setTransferModalOpen(false)}
+                style={{ ...modalButton, background: "#333" }}
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleTransferTasks}
+                disabled={!transferSourceKey}
+                style={{
+                  ...modalButton,
+                  background: "#4D9EFF",
+                  opacity: transferSourceKey ? 1 : 0.5,
+                }}
+              >
+                Przenieś
               </button>
             </div>
           </div>
