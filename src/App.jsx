@@ -15,14 +15,41 @@ const MASTER_PALETTE = [
 ];
 
 const MAX_COLORS = 6;
-const STORAGE_KEY = "tickcal_v7"; // v7 – nowe miesiące dziedziczą taski
+const STORAGE_KEY = "tickcal_app"; // stały klucz – brak numeru wersji
 
 // ---------- POMOCNICZE FUNKCJE ----------
 function loadState() {
   try {
+    // 1. Próbuj odczytać z nowego klucza
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.monthsData) return parsed;
+    }
+
+    // 2. Jeśli nie ma, spróbuj z v7
+    const rawV7 = localStorage.getItem("tickcal_v7");
+    if (rawV7) {
+      const parsedV7 = JSON.parse(rawV7);
+      if (parsedV7 && parsedV7.monthsData) {
+        // Zapisz pod nowym kluczem i zwróć
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedV7));
+        return parsedV7;
+      }
+    }
+
+    // 3. Spróbuj z v6
+    const rawV6 = localStorage.getItem("tickcal_v6");
+    if (rawV6) {
+      const parsedV6 = JSON.parse(rawV6);
+      if (parsedV6 && parsedV6.monthsData) {
+        // Zapisz pod nowym kluczem i zwróć
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedV6));
+        return parsedV6;
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -113,18 +140,7 @@ export default function App() {
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
 
   // ---------- INICJALIZACJA ----------
-  useEffect(() => {
-    const saved = loadState();
-    // POPRAWKA 1: Usunięto warunek `saved.version === 7`, który blokował wczytywanie danych zapisanych jako v6
-    if (saved && saved.monthsData) {
-      setMonthsData(saved.monthsData);
-    } else {
-      // Brak danych – utwórz domyślny dla bieżącego miesiąca
-      const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-      const defaultData = getDefaultMonthData();
-      setMonthsData({ [defaultKey]: defaultData });
-    }
-  }, []);
+
 
   // Zapisz całość przy każdej zmianie monthsData
   useEffect(() => {
