@@ -15,41 +15,14 @@ const MASTER_PALETTE = [
 ];
 
 const MAX_COLORS = 6;
-const STORAGE_KEY = "tickcal_app"; // stały klucz – brak numeru wersji
+const STORAGE_KEY = "tickcal_v8"; // v8 – POPRAWKA: nowy klucz, aby uniknąć konfliktów ze starymi uszkodzonymi danymi
 
 // ---------- POMOCNICZE FUNKCJE ----------
 function loadState() {
   try {
-    // 1. Próbuj odczytać z nowego klucza
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.monthsData) return parsed;
-    }
-
-    // 2. Jeśli nie ma, spróbuj z v7
-    const rawV7 = localStorage.getItem("tickcal_v7");
-    if (rawV7) {
-      const parsedV7 = JSON.parse(rawV7);
-      if (parsedV7 && parsedV7.monthsData) {
-        // Zapisz pod nowym kluczem i zwróć
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedV7));
-        return parsedV7;
-      }
-    }
-
-    // 3. Spróbuj z v6
-    const rawV6 = localStorage.getItem("tickcal_v6");
-    if (rawV6) {
-      const parsedV6 = JSON.parse(rawV6);
-      if (parsedV6 && parsedV6.monthsData) {
-        // Zapisz pod nowym kluczem i zwróć
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedV6));
-        return parsedV6;
-      }
-    }
-
-    return null;
+    if (!raw) return null;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -57,6 +30,50 @@ function loadState() {
 
 function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+// POPRAWKA: Funkcja migracji – naprawia stare klucze dat bez padStart
+function migrateData(data) {
+  if (!data || !data.monthsData) return data;
+
+  const newMonthsData = {};
+  for (const [monthKey, monthData] of Object.entries(data.monthsData)) {
+    // Migracja ticks – napraw klucze dat
+    const newTicks = {};
+    if (monthData.ticks) {
+      for (const [dateKey, value] of Object.entries(monthData.ticks)) {
+        const parts = dateKey.split("-");
+        if (parts.length === 3) {
+          const newKey = `${parts[0]}-${String(parts[1]).padStart(2, "0")}-${String(parts[2]).padStart(2, "0")}`;
+          newTicks[newKey] = value;
+        } else {
+          newTicks[dateKey] = value;
+        }
+      }
+    }
+
+    // Migracja notes – napraw klucze dat
+    const newNotes = {};
+    if (monthData.notes) {
+      for (const [dateKey, value] of Object.entries(monthData.notes)) {
+        const parts = dateKey.split("-");
+        if (parts.length === 3) {
+          const newKey = `${parts[0]}-${String(parts[1]).padStart(2, "0")}-${String(parts[2]).padStart(2, "0")}`;
+          newNotes[newKey] = value;
+        } else {
+          newNotes[dateKey] = value;
+        }
+      }
+    }
+
+    newMonthsData[monthKey] = {
+      ...monthData,
+      ticks: newTicks,
+      notes: newNotes,
+    };
+  }
+
+  return { ...data, monthsData: newMonthsData };
 }
 
 // Domyślne dane dla nowego miesiąca (jeden task "Task 1")
@@ -75,10 +92,10 @@ function getDefaultMonthData() {
   };
 }
 
-// Nowy miesiąc dziedziczy taski i etykiety z poprzedniego miesiąca
+// POPRAWKA: Głęboka kopia colors, aby miesiące nie dzieliły referencji
 function getInheritedMonthData(sourceData) {
   return {
-    colors: sourceData.colors,
+    colors: sourceData.colors.map(c => ({ ...c })), // GŁĘBOKA KOPIA każdego koloru
     ticks: {},
     labels: { ...sourceData.labels },
     notes: {},
@@ -113,8 +130,13 @@ export default function App() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [monthsData, setMonthsData] = useState({});
+
+  // POPRAWKA: monthsData startuje jako null (nie {}), aby rozróżnić "nie wczytano" od "pusto"
+  const [monthsData, setMonthsData] = useState(null);
   const [currentMonthKey, setCurrentMonthKey] = useState(null);
+
+  // POPRAWKA: Flaga informująca czy dane zostały wczytane z localStorage
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Bieżące dane dla otwartego miesiąca
   const [colors, setColors] = useState([]);
@@ -140,17 +162,36 @@ export default function App() {
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
 
   // ---------- INICJALIZACJA ----------
-
+  // POPRAWKA: JEDEN effect inicjalizacyjny – wczytuje dane i ustawia flagę
+  useEffect(() => {
+    const saved = loadState();
+    if (saved && saved.monthsData) {
+      // POPRAWKA: Migracja starych kluczy dat (bez padStart) na nowe
+      const migrated = migrateData(saved);
+      setMonthsData(migrated.monthsData);
+    } else {
+      // Brak danych – utwórz domyślny dla bieżącego miesiąca
+      const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+      const defaultData = getDefaultMonthData();
+      setMonthsData({ [defaultKey]: defaultData });
+    }
+    setIsDataLoaded(true); // Oznaczamy że inicjalizacja zakończona
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zapisz całość przy każdej zmianie monthsData
+  // POPRAWKA: Nie zapisuj dopóki dane nie zostały wczytane
   useEffect(() => {
+    if (!isDataLoaded || monthsData === null) return;
     if (Object.keys(monthsData).length > 0) {
-      saveState({ version: 7, monthsData }); // Zaktualizowano wersję na 7 dla spójności
+      saveState({ version: 8, monthsData });
     }
-  }, [monthsData]);
+  }, [monthsData, isDataLoaded]);
 
   // Aktualizuj currentMonthKey i wczytaj dane dla bieżącego miesiąca
+  // POPRAWKA: Nie wykonuj dopóki dane nie zostały wczytane z localStorage
   useEffect(() => {
+    if (!isDataLoaded || monthsData === null) return;
+
     const key = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
     setCurrentMonthKey(key);
     let data = monthsData[key];
@@ -165,11 +206,11 @@ export default function App() {
     setLabels(data.labels);
     setNotes(data.notes);
     setActiveColorId(data.activeColorId);
-  }, [monthsData, viewYear, viewMonth]);
+  }, [monthsData, viewYear, viewMonth, isDataLoaded]);
 
   // Zapisuj zmiany w bieżącym miesiącu do monthsData
   useEffect(() => {
-    if (!currentMonthKey) return;
+    if (!currentMonthKey || !isDataLoaded || monthsData === null) return;
     const data = {
       colors,
       ticks,
@@ -178,7 +219,7 @@ export default function App() {
       activeColorId,
     };
     setMonthsData(prev => ({ ...prev, [currentMonthKey]: data }));
-  }, [colors, ticks, labels, notes, activeColorId, currentMonthKey]);
+  }, [colors, ticks, labels, notes, activeColorId, currentMonthKey, isDataLoaded]);
 
   // ---------- FUNKCJE POMOCNICZE ----------
   function getTaskNumberFromLabel(label) {
@@ -200,8 +241,6 @@ export default function App() {
     return labels[colorId] || colors.find(c => c.id === colorId)?.defaultLabel || "";
   }
 
-  // POPRAWKA 2: Dodano `.padStart(2, "0")` do miesiąca i dnia, aby klucze daty zawsze miały format RRRR-MM-DD
-  // Zapobiega to znikaniu ticków i notatek po odświeżeniu strony.
   function dateKey(d) {
     return `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
@@ -384,7 +423,7 @@ export default function App() {
 
   // ---------- EKSPORT / IMPORT ----------
   function exportData() {
-    const dataStr = JSON.stringify({ version: 7, monthsData }, null, 2);
+    const dataStr = JSON.stringify({ version: 8, monthsData }, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -400,8 +439,9 @@ export default function App() {
       try {
         const imported = JSON.parse(e.target.result);
         if (!imported || typeof imported !== "object") throw new Error("Nieprawidłowy format");
-        if (imported.version >= 6 && imported.monthsData) { // POPRAWKA: Akceptuj wersje >= 6
-          setMonthsData(imported.monthsData);
+        if (imported.version >= 6 && imported.monthsData) {
+          const migrated = migrateData(imported);
+          setMonthsData(migrated.monthsData);
           showCustomAlert("Sukces", "Dane zostały zaimportowane.");
         } else {
           throw new Error("Nieprawidłowy format pliku backupu.");
@@ -781,7 +821,6 @@ export default function App() {
                   title="Kliknij dwukrotnie, aby edytować nazwę taska"
                 >
                   {getLabel(c.id)}
-                  {/* POPRAWKA 3: Zmieniono tekst podpowiedzi zgodnie z życzeniem */}
                   <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>Tapnij/Kliknij x2 aby zmienić nazwę.</span>
                 </span>
               )}
