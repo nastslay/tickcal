@@ -160,6 +160,84 @@ export default function App() {
   // UI – modale
   const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
   const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
+  // ---------- SWIPE (przesuwanie miesięcy palcem) ----------
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+  const touchStartTime = useRef(null);
+  const isSwiping = useRef(false);
+  const SWIPE_THRESHOLD = 60;      // px – minimalna odległość
+  const SWIPE_MAX_Y = 100;         // px – max ruch w pionie
+  const SWIPE_MAX_TIME = 400;      // ms – max czas trwania swipe
+
+  // Rejestrujemy touch events na poziomie window dla pewności
+  useEffect(() => {
+    function onTouchStart(e) {
+      // Ignoruj jeśli dotykamy input, textarea, lub przycisk
+      const tag = e.target.tagName.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'button' || e.target.closest('button')) return;
+
+      touchStartX.current = e.changedTouches[0].screenX;
+      touchStartY.current = e.changedTouches[0].screenY;
+      touchStartTime.current = Date.now();
+      isSwiping.current = false;
+    }
+
+    function onTouchMove(e) {
+      if (touchStartX.current === null) return;
+      const currentX = e.changedTouches[0].screenX;
+      const currentY = e.changedTouches[0].screenY;
+      const diffX = Math.abs(touchStartX.current - currentX);
+      const diffY = Math.abs(touchStartY.current - currentY);
+
+      // Jeśli ruch jest wyraźnie poziomy, zablokuj scroll
+      if (diffX > 15 && diffX > diffY * 1.5) {
+        isSwiping.current = true;
+        // Nie blokujemy preventDefault bo passive listener
+        // Ale CSS touch-action: pan-y na wrapperze pozwala na vert scroll
+        // a blokujemy horiz swipe
+      }
+    }
+
+    function onTouchEnd(e) {
+      if (touchStartX.current === null) return;
+
+      const endX = e.changedTouches[0].screenX;
+      const endY = e.changedTouches[0].screenY;
+      const diffX = touchStartX.current - endX;
+      const diffY = touchStartY.current - endY;
+      const elapsed = Date.now() - touchStartTime.current;
+
+      // Reset
+      touchStartX.current = null;
+      touchStartY.current = null;
+      touchStartTime.current = null;
+
+      // Walidacja swipe
+      if (elapsed > SWIPE_MAX_TIME) return;           // za wolno
+      if (Math.abs(diffY) > SWIPE_MAX_Y) return;      // za dużo w pionie
+      if (Math.abs(diffX) < SWIPE_THRESHOLD) return;  // za krótko
+
+      // Swipe w lewo (diffX > 0) → następny miesiąc
+      if (diffX > 0) {
+        nextMonth();
+      }
+      // Swipe w prawo (diffX < 0) → poprzedni miesiąc
+      else {
+        prevMonth();
+      }
+    }
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [viewYear, viewMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // ---------- INICJALIZACJA ----------
   // POPRAWKA: JEDEN effect inicjalizacyjny – wczytuje dane i ustawia flagę
@@ -523,7 +601,7 @@ export default function App() {
 
   // ---------- RENDER ----------
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 0 40px" }}>
+    <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 0 40px", touchAction: "pan-y" }}>
       {/* Nagłówek */}
       <div style={{
         background: "#1a1a1a",
