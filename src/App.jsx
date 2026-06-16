@@ -15,7 +15,7 @@ const MASTER_PALETTE = [
 ];
 
 const MAX_COLORS = 6;
-const STORAGE_KEY = "tickcal_v6"; // nowa wersja – per-miesiąc
+const STORAGE_KEY = "tickcal_v7"; // v7 – nowe miesiące dziedziczą taski
 
 // ---------- POMOCNICZE FUNKCJE ----------
 function loadState() {
@@ -46,6 +46,24 @@ function getDefaultMonthData() {
     notes: {},
     activeColorId: defaultColor.id,
   };
+}
+
+// Nowy miesiąc dziedziczy taski i etykiety z poprzedniego miesiąca
+function getInheritedMonthData(sourceData) {
+  return {
+    colors: sourceData.colors,
+    ticks: {},
+    labels: { ...sourceData.labels },
+    notes: {},
+    activeColorId: sourceData.activeColorId,
+  };
+}
+
+// Znajdź najnowszy miesiąc z dostępnych danych
+function getMostRecentMonthData(monthsData) {
+  const keys = Object.keys(monthsData).sort();
+  if (keys.length === 0) return null;
+  return monthsData[keys[keys.length - 1]];
 }
 
 const DAYS_PL = ["Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"];
@@ -97,7 +115,7 @@ export default function App() {
   // ---------- INICJALIZACJA ----------
   useEffect(() => {
     const saved = loadState();
-    if (saved && saved.version === 6 && saved.monthsData) {
+    if (saved && saved.version === 7 && saved.monthsData) {
       setMonthsData(saved.monthsData);
     } else {
       // Brak danych – utwórz domyślny dla bieżącego miesiąca
@@ -120,8 +138,9 @@ export default function App() {
     setCurrentMonthKey(key);
     let data = monthsData[key];
     if (!data) {
-      // Nowy miesiąc – utwórz domyślny
-      data = getDefaultMonthData();
+      // Nowy miesiąc – odziedzicz taski z poprzedniego miesiąca lub utwórz domyślny
+      const recentData = getMostRecentMonthData(monthsData);
+      data = recentData ? getInheritedMonthData(recentData) : getDefaultMonthData();
       setMonthsData(prev => ({ ...prev, [key]: data }));
     }
     setColors(data.colors);
