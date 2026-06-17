@@ -976,23 +976,56 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Stopka */}
+        {isInteractive && (
+          <div style={{
+            marginTop: 32,
+            borderTop: "1px solid #2a2a2a",
+            padding: "16px 16px 24px",
+          }}>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+              <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
+              <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
+              <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
+              <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
+            </div>
+            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+              {tt('backupInfo')}
+            </div>
+            {/* 🆕 Flagi na samym dole, wyrównane do lewej */}
+            <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
+              <button
+                onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
+                style={{
+                  background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                  filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)", opacity: lang === 'pl' ? 1 : 0.5,
+                }}
+                title="Polski"
+              >
+                🇵🇱
+              </button>
+              <button
+                onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
+                style={{
+                  background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                  filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)", opacity: lang === 'en' ? 1 : 0.5,
+                }}
+                title="English"
+              >
+                🇬🇧
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
-
   // ---------- RENDER GŁÓWNY ----------
   return (
-    <div style={{
-      maxWidth: 480,
-      margin: "0 auto",
-      minHeight: "100vh",                 // 👈 pełna wysokość ekranu
-      display: "flex",
-      flexDirection: "column",
-      touchAction: "pan-y",
-    }}>
-      {/* Zawartość slajdu – rośnie, wypychając stopkę na dół */}
-      <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
+    <div style={{ maxWidth: 480, margin: "0 auto", padding: "0", touchAction: "pan-y" }}>
+      <div style={{ overflow: "hidden", width: "100%" }}>
         <div ref={slideContainerRef} style={{ display: "flex", width: "200%" }}>
           {slide.active && slide.swap ? (
             <>
@@ -1017,50 +1050,7 @@ export default function App() {
           )}
         </div>
       </div>
-  
-      {/* STOPKA – ZAWSZE NA DOLE (poza slajdem) */}
-      {!slide.active && (
-        <div style={{
-          borderTop: "1px solid #2a2a2a",
-          padding: "16px 16px 24px",
-          background: "#1a1a1a",
-        }}>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
-            <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
-            <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
-            <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
-            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
-          </div>
-          <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-            {tt('backupInfo')}
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
-            <button
-              onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
-              style={{
-                background: "none", border: "none", fontSize: 22, cursor: "pointer",
-                filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)",
-                opacity: lang === 'pl' ? 1 : 0.5,
-              }}
-              title="Polski"
-            >
-              🇵🇱
-            </button>
-            <button
-              onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
-              style={{
-                background: "none", border: "none", fontSize: 22, cursor: "pointer",
-                filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)",
-                opacity: lang === 'en' ? 1 : 0.5,
-              }}
-              title="English"
-            >
-              🇬🇧
-            </button>
-          </div>
-        </div>
-      )}
-      
+
       {/* Modale */}
       {showNoteModal && (
         <div style={{
