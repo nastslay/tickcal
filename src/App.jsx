@@ -1060,15 +1060,7 @@ export default function App() {
           </div>
         </div>
       )}
-  
-      {/* Modale – bez zmian */}
-      {showNoteModal && ( ... )}
-      {viewNoteModal.open && ( ... )}
-      {customModal.open && ( ... )}
-      {transferModalOpen && ( ... )}
-    </div>
-  );
-
+      
       {/* Modale */}
       {showNoteModal && (
         <div style={{
