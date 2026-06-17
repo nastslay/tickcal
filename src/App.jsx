@@ -16,6 +16,115 @@ const MASTER_PALETTE = [
 
 const MAX_COLORS = 6;
 const STORAGE_KEY = "tickcal_v8";
+const LANG_KEY = "tickcal_lang";
+
+// ---------- TŁUMACZENIA ----------
+const translations = {
+  pl: {
+    months: [
+      "Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
+      "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"
+    ],
+    days: ["Pn","Wt","Śr","Cz","Pt","Sb","Nd"],
+    notesManagement: "Notatki i zarządzanie miesiącem",
+    tasksHeader: "Taski w tym miesiącu · Ten miesiąc · Łącznie",
+    transferTasks: "Przenieś taski",
+    export: "Eksportuj",
+    import: "Importuj",
+    resetAll: "Resetuj wszystko",
+    backupInfo: "Backup i przywracanie danych (wszystkie miesiące)",
+    addNote: "Dodaj notatkę",
+    editNote: "Edytuj notatkę",
+    viewNote: "Zobacz notatkę",
+    deleteNote: "Usuń notatkę",
+    resetMonth: "Resetuj miesiąc",
+    selectedDay: "Wybrany dzień:",
+    noSelection: "Brak wyboru",
+    clickDayFirst: "Najpierw kliknij na dowolny dzień w kalendarzu.",
+    note: "Notatka",
+    noNoteForDay: "Brak notatki dla tego dnia.",
+    confirmation: "Potwierdzenie",
+    deleteTaskConfirm: "Usunąć \"{taskName}\" z tego miesiąca? Wszystkie jego oznaczenia w tym miesiącu znikną.",
+    deleteNoteConfirm: "Czy na pewno usunąć notatkę z tego dnia?",
+    limit: "Ograniczenie",
+    maxTasks: "Możesz dodać maksymalnie {max} tasków w tym miesiącu.",
+    colorAlreadyAdded: "Ten kolor jest już dodany w tym miesiącu.",
+    minOneTask: "W tym miesiącu musi pozostać przynajmniej jeden task.",
+    resetMonthConfirm: "Czy na pewno chcesz zresetować miesiąc {month} {year}? Wszystkie taski, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden task (Task 1).",
+    resetAllConfirm: "Czy na pewno chcesz usunąć dane ze wszystkich miesięcy? Zostanie utworzony tylko bieżący miesiąc z jednym taskiem.",
+    success: "Sukces",
+    dataImported: "Dane zostały zaimportowane.",
+    error: "Błąd",
+    invalidBackup: "Plik nie jest prawidłowym backupem.",
+    invalidFormat: "Nieprawidłowy format",
+    invalidBackupFormat: "Nieprawidłowy format pliku backupu.",
+    selectSourceMonth: "Wybierz miesiąc źródłowy",
+    transfer: "Przenieś",
+    cancel: "Anuluj",
+    save: "Zapisz",
+    ok: "OK",
+    noteContent: "Treść notatki",
+    noteForDay: "Notatka dla dnia {date}",
+    enterNote: "Wpisz treść notatki...",
+    doubleClickToRename: "Tapnij/Kliknij x2 aby zmienić nazwę.",
+    doubleClickHint: "x2 aby zmienić nazwę",
+    doubleClickTitle: "Kliknij dwukrotnie, aby edytować nazwę taska",
+    removeTask: "Usuń task z tego miesiąca",
+    defaultTaskLabel: "Zadanie",
+  },
+  en: {
+    months: [
+      "January","February","March","April","May","June",
+      "July","August","September","October","November","December"
+    ],
+    days: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+    notesManagement: "Notes & month management",
+    tasksHeader: "Tasks this month · This month · Total",
+    transferTasks: "Transfer tasks",
+    export: "Export",
+    import: "Import",
+    resetAll: "Reset all",
+    backupInfo: "Backup & restore (all months)",
+    addNote: "Add note",
+    editNote: "Edit note",
+    viewNote: "View note",
+    deleteNote: "Delete note",
+    resetMonth: "Reset month",
+    selectedDay: "Selected day:",
+    noSelection: "No selection",
+    clickDayFirst: "First click on any day in the calendar.",
+    note: "Note",
+    noNoteForDay: "No note for this day.",
+    confirmation: "Confirmation",
+    deleteTaskConfirm: "Delete \"{taskName}\" from this month? All its marks in this month will disappear.",
+    deleteNoteConfirm: "Are you sure you want to delete the note for this day?",
+    limit: "Limit",
+    maxTasks: "You can add up to {max} tasks in this month.",
+    colorAlreadyAdded: "This color is already added in this month.",
+    minOneTask: "At least one task must remain in this month.",
+    resetMonthConfirm: "Are you sure you want to reset the month {month} {year}? All tasks, marks, and notes will be deleted, leaving only one task (Task 1).",
+    resetAllConfirm: "Are you sure you want to delete data from all months? Only the current month with one task will be created.",
+    success: "Success",
+    dataImported: "Data imported.",
+    error: "Error",
+    invalidBackup: "File is not a valid backup.",
+    invalidFormat: "Invalid format",
+    invalidBackupFormat: "Invalid backup file format.",
+    selectSourceMonth: "Select source month",
+    transfer: "Transfer",
+    cancel: "Cancel",
+    save: "Save",
+    ok: "OK",
+    noteContent: "Note content",
+    noteForDay: "Note for day {date}",
+    enterNote: "Enter note content...",
+    doubleClickToRename: "Tap/Double-click to rename.",
+    doubleClickHint: "double-click to rename",
+    doubleClickTitle: "Double-click to edit task name",
+    removeTask: "Remove task from this month",
+    defaultTaskLabel: "Task",
+  }
+};
 
 // ---------- POMOCNICZE FUNKCJE ----------
 function loadState() {
@@ -73,16 +182,17 @@ function migrateData(data) {
   return { ...data, monthsData: newMonthsData };
 }
 
-function getDefaultMonthData() {
+function getDefaultMonthData(lang) {
+  const label = lang === 'pl' ? 'Zadanie 1' : 'Task 1';
   const defaultColor = {
     id: Date.now() + Math.random(),
     hex: MASTER_PALETTE[0].hex,
-    defaultLabel: "Task 1",
+    defaultLabel: label,
   };
   return {
     colors: [defaultColor],
     ticks: {},
-    labels: { [defaultColor.id]: "Task 1" },
+    labels: { [defaultColor.id]: label },
     notes: {},
     activeColorId: defaultColor.id,
   };
@@ -104,12 +214,6 @@ function getMostRecentMonthData(monthsData) {
   return monthsData[keys[keys.length - 1]];
 }
 
-const DAYS_PL = ["Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"];
-const MONTHS_PL = [
-  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
-  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"
-];
-
 function getDaysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
 }
@@ -129,12 +233,33 @@ export default function App() {
   const [currentMonthKey, setCurrentMonthKey] = useState(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
+  // Język
+  const [lang, setLang] = useState(() => {
+    const saved = localStorage.getItem(LANG_KEY);
+    return saved === 'en' ? 'en' : 'pl';
+  });
+  const tr = translations[lang];
+
+  // Pomocnicza funkcja tłumacząca
+  const tt = useCallback((key, vars = {}) => {
+    let str = translations[lang][key] || key;
+    Object.entries(vars).forEach(([k, v]) => {
+      str = str.replace(`{${k}}`, v);
+    });
+    return str;
+  }, [lang]);
+
+  // Zapis języka przy zmianie
+  useEffect(() => {
+    localStorage.setItem(LANG_KEY, lang);
+  }, [lang]);
+
   // Animacja slajdu – przesuwa CAŁY widok miesiąca
   const [slide, setSlide] = useState({
     active: false,
     targetYear: null,
     targetMonth: null,
-    swap: false, // czy zamienić kolejność dzieci (dla prev)
+    swap: false,
   });
   const isSlidingRef = useRef(false);
   const slideContainerRef = useRef(null);
@@ -172,17 +297,14 @@ export default function App() {
       let newMonth = viewMonth;
 
       if (direction === 1) {
-        // następny
         if (viewMonth === 11) { newYear++; newMonth = 0; }
         else newMonth++;
       } else {
-        // poprzedni
         if (viewMonth === 0) { newYear--; newMonth = 11; }
         else newMonth--;
       }
 
-      // Ustawienie pozycji i kolejności w zależności od kierunku
-      const swap = direction === -1; // przy prev zamieniamy strony (target po lewej)
+      const swap = direction === -1;
       const startTranslate = swap ? -100 : 0;
       const endTranslate = swap ? 0 : -100;
 
@@ -196,15 +318,12 @@ export default function App() {
       requestAnimationFrame(() => {
         const container = slideContainerRef.current;
         if (!container) return;
-        // Bez transition, ustawiamy pozycję startową
         container.style.transition = "none";
         container.style.transform = `translateX(${startTranslate}%)`;
-        container.offsetHeight; // reflow
-        // Włączamy transition i przesuwamy do pozycji końcowej
+        container.offsetHeight;
         container.style.transition = "transform 0.4s ease";
         container.style.transform = `translateX(${endTranslate}%)`;
 
-        // Po zakończeniu animacji podmieniamy miesiąc
         setTimeout(() => {
           setViewYear(newYear);
           setViewMonth(newMonth);
@@ -215,7 +334,6 @@ export default function App() {
             swap: false,
           });
           isSlidingRef.current = false;
-          // Reset transform
           if (slideContainerRef.current) {
             slideContainerRef.current.style.transition = "none";
             slideContainerRef.current.style.transform = "translateX(0%)";
@@ -229,7 +347,7 @@ export default function App() {
   function prevMonth() { navigateMonth(-1); }
   function nextMonth() { navigateMonth(1); }
 
-  // ---------- SWIPE (przesuwanie palcem) ----------
+  // ---------- SWIPE ----------
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const touchStartTime = useRef(null);
@@ -241,55 +359,33 @@ export default function App() {
     function onTouchStart(e) {
       const tag = e.target.tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'button' || e.target.closest('button')) return;
-
       touchStartX.current = e.changedTouches[0].screenX;
       touchStartY.current = e.changedTouches[0].screenY;
       touchStartTime.current = Date.now();
     }
-
     function onTouchMove(e) {
       if (touchStartX.current === null) return;
-      const currentX = e.changedTouches[0].screenX;
-      const currentY = e.changedTouches[0].screenY;
-      const diffX = Math.abs(touchStartX.current - currentX);
-      const diffY = Math.abs(touchStartY.current - currentY);
-
-      if (diffX > 15 && diffX > diffY * 1.5) {
-        e.preventDefault?.(); // zapobiegaj domyślnemu przewijaniu podczas swipe
-      }
+      const diffX = Math.abs(touchStartX.current - e.changedTouches[0].screenX);
+      const diffY = Math.abs(touchStartY.current - e.changedTouches[0].screenY);
+      if (diffX > 15 && diffX > diffY * 1.5) e.preventDefault?.();
     }
-
     function onTouchEnd(e) {
       if (touchStartX.current === null) return;
-
       const endX = e.changedTouches[0].screenX;
       const endY = e.changedTouches[0].screenY;
       const diffX = touchStartX.current - endX;
       const diffY = touchStartY.current - endY;
       const elapsed = Date.now() - touchStartTime.current;
-
       touchStartX.current = null;
       touchStartY.current = null;
       touchStartTime.current = null;
-
-      if (elapsed > SWIPE_MAX_TIME) return;
-      if (Math.abs(diffY) > SWIPE_MAX_Y) return;
-      if (Math.abs(diffX) < SWIPE_THRESHOLD) return;
-
-      // Swipe w lewo (diffX > 0) → następny miesiąc
-      if (diffX > 0) {
-        navigateMonth(1);
-      }
-      // Swipe w prawo (diffX < 0) → poprzedni miesiąc
-      else {
-        navigateMonth(-1);
-      }
+      if (elapsed > SWIPE_MAX_TIME || Math.abs(diffY) > SWIPE_MAX_Y || Math.abs(diffX) < SWIPE_THRESHOLD) return;
+      if (diffX > 0) navigateMonth(1);
+      else navigateMonth(-1);
     }
-
     window.addEventListener('touchstart', onTouchStart, { passive: false });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd, { passive: true });
-
     return () => {
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
@@ -305,28 +401,24 @@ export default function App() {
       setMonthsData(migrated.monthsData);
     } else {
       const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-      const defaultData = getDefaultMonthData();
-      setMonthsData({ [defaultKey]: defaultData });
+      setMonthsData({ [defaultKey]: getDefaultMonthData(lang) });
     }
     setIsDataLoaded(true);
   }, []); // eslint-disable-line
 
   useEffect(() => {
     if (!isDataLoaded || monthsData === null) return;
-    if (Object.keys(monthsData).length > 0) {
-      saveState({ version: 8, monthsData });
-    }
+    if (Object.keys(monthsData).length > 0) saveState({ version: 8, monthsData });
   }, [monthsData, isDataLoaded]);
 
   useEffect(() => {
     if (!isDataLoaded || monthsData === null) return;
-
     const key = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
     setCurrentMonthKey(key);
     let data = monthsData[key];
     if (!data) {
       const recentData = getMostRecentMonthData(monthsData);
-      data = recentData ? getInheritedMonthData(recentData) : getDefaultMonthData();
+      data = recentData ? getInheritedMonthData(recentData) : getDefaultMonthData(lang);
       setMonthsData(prev => ({ ...prev, [key]: data }));
     }
     setColors(data.colors);
@@ -334,23 +426,16 @@ export default function App() {
     setLabels(data.labels);
     setNotes(data.notes);
     setActiveColorId(data.activeColorId);
-  }, [monthsData, viewYear, viewMonth, isDataLoaded]);
+  }, [monthsData, viewYear, viewMonth, isDataLoaded, lang]);
 
   useEffect(() => {
     if (!currentMonthKey || !isDataLoaded || monthsData === null) return;
-    const data = {
-      colors,
-      ticks,
-      labels,
-      notes,
-      activeColorId,
-    };
-    setMonthsData(prev => ({ ...prev, [currentMonthKey]: data }));
+    setMonthsData(prev => ({ ...prev, [currentMonthKey]: { colors, ticks, labels, notes, activeColorId } }));
   }, [colors, ticks, labels, notes, activeColorId, currentMonthKey, isDataLoaded]);
 
-  // ---------- POZOSTAŁE HANDLERY ----------
+  // ---------- HANDLERY ----------
   function getTaskNumberFromLabel(label) {
-    const match = label.match(/Task (\d+)/);
+    const match = label.match(/(?:Task|Zadanie) (\d+)/);
     return match ? parseInt(match[1], 10) : 0;
   }
   function getNextTaskNumber() {
@@ -392,19 +477,18 @@ export default function App() {
 
   function addColorFromPalette(paletteColor) {
     if (colors.length >= MAX_COLORS) {
-      showCustomAlert("Ograniczenie", `Możesz dodać maksymalnie ${MAX_COLORS} tasków w tym miesiącu.`);
+      showCustomAlert(tt('limit'), tt('maxTasks', { max: MAX_COLORS }));
       setShowAddPalette(false);
       return;
     }
-    const alreadyExists = colors.some(c => c.hex === paletteColor.hex);
-    if (alreadyExists) {
-      showCustomAlert("Uwaga", "Ten kolor jest już dodany w tym miesiącu.");
+    if (colors.some(c => c.hex === paletteColor.hex)) {
+      showCustomAlert(tt('limit'), tt('colorAlreadyAdded'));
       setShowAddPalette(false);
       return;
     }
     const newId = Date.now() + Math.random();
     const nextNumber = getNextTaskNumber();
-    const newLabel = `Task ${nextNumber}`;
+    const newLabel = lang === 'pl' ? `Zadanie ${nextNumber}` : `Task ${nextNumber}`;
     const newColor = { ...paletteColor, id: newId, defaultLabel: newLabel };
     setColors(prev => [...prev, newColor]);
     setLabels(prev => ({ ...prev, [newId]: newLabel }));
@@ -414,14 +498,14 @@ export default function App() {
 
   function deleteColor(colorId) {
     if (colors.length <= 1) {
-      showCustomAlert("Uwaga", "W tym miesiącu musi pozostać przynajmniej jeden task.");
+      showCustomAlert(tt('limit'), tt('minOneTask'));
       return;
     }
     const taskName = getLabel(colorId);
     setCustomModal({
       open: true,
-      title: "Potwierdzenie",
-      message: `Usunąć "${taskName}" z tego miesiąca? Wszystkie jego oznaczenia w tym miesiącu znikną.`,
+      title: tt('confirmation'),
+      message: tt('deleteTaskConfirm', { taskName }),
       onConfirm: () => {
         setColors(prev => prev.filter(c => c.id !== colorId));
         setTicks(prev => {
@@ -436,39 +520,35 @@ export default function App() {
           const { [colorId]: _, ...rest } = prev;
           return rest;
         });
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+        setCustomModal({ open: false });
       },
       showCancel: true,
     });
   }
 
   function resetCurrentMonth() {
-    const key = currentMonthKey;
-    if (!key) return;
+    if (!currentMonthKey) return;
     setCustomModal({
       open: true,
-      title: "Reset miesiąca",
-      message: `Czy na pewno chcesz zresetować miesiąc ${MONTHS_PL[viewMonth]} ${viewYear}? Wszystkie taski, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden task (Task 1).`,
+      title: tt('resetMonth'),
+      message: tt('resetMonthConfirm', { month: tr.months[viewMonth], year: viewYear }),
       onConfirm: () => {
-        const newData = getDefaultMonthData();
-        setMonthsData(prev => ({ ...prev, [key]: newData }));
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+        setMonthsData(prev => ({ ...prev, [currentMonthKey]: getDefaultMonthData(lang) }));
+        setCustomModal({ open: false });
       },
       showCancel: true,
     });
   }
 
-  // ---------- OPERACJE NA NOTATKACH ----------
+  // ---------- NOTATKI ----------
   function openNoteModal() {
     if (!selectedDate) {
-      showCustomAlert("Brak wyboru", "Najpierw kliknij na dowolny dzień w kalendarzu.");
+      showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
       return;
     }
-    const existingNote = notes[selectedDate] || "";
-    setNoteDraft(existingNote);
+    setNoteDraft(notes[selectedDate] || "");
     setShowNoteModal(true);
   }
-
   function saveNote() {
     if (!selectedDate) return;
     if (noteDraft.trim() === "") {
@@ -482,50 +562,44 @@ export default function App() {
     setShowNoteModal(false);
     setNoteDraft("");
   }
-
   function viewNote() {
     if (!selectedDate) {
-      showCustomAlert("Brak wyboru", "Najpierw kliknij na dzień.");
+      showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
       return;
     }
     const note = notes[selectedDate];
-    if (!note) {
-      showCustomAlert("Notatka", "Brak notatki dla tego dnia.");
-    } else {
-      setViewNoteModal({ open: true, noteText: note });
-    }
+    if (!note) showCustomAlert(tt('note'), tt('noNoteForDay'));
+    else setViewNoteModal({ open: true, noteText: note });
   }
-
   function deleteNote() {
     if (!selectedDate) {
-      showCustomAlert("Brak wyboru", "Najpierw kliknij na dzień.");
+      showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
       return;
     }
     if (!notes[selectedDate]) {
-      showCustomAlert("Notatka", "Brak notatki do usunięcia.");
+      showCustomAlert(tt('note'), tt('noNoteForDay'));
       return;
     }
     setCustomModal({
       open: true,
-      title: "Potwierdzenie",
-      message: "Czy na pewno usunąć notatkę z tego dnia?",
+      title: tt('confirmation'),
+      message: tt('deleteNoteConfirm'),
       onConfirm: () => {
         setNotes(prev => {
           const { [selectedDate]: _, ...rest } = prev;
           return rest;
         });
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+        setCustomModal({ open: false });
       },
       showCancel: true,
     });
   }
-
   function showCustomAlert(title, message) {
     setCustomModal({
       open: true,
       title,
       message,
-      onConfirm: () => setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false }),
+      onConfirm: () => setCustomModal({ open: false }),
       showCancel: false,
     });
   }
@@ -547,43 +621,40 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const imported = JSON.parse(e.target.result);
-        if (!imported || typeof imported !== "object") throw new Error("Nieprawidłowy format");
+        if (!imported || typeof imported !== "object") throw new Error(tt('invalidFormat'));
         if (imported.version >= 6 && imported.monthsData) {
-          const migrated = migrateData(imported);
-          setMonthsData(migrated.monthsData);
-          showCustomAlert("Sukces", "Dane zostały zaimportowane.");
+          setMonthsData(migrateData(imported).monthsData);
+          showCustomAlert(tt('success'), tt('dataImported'));
         } else {
-          throw new Error("Nieprawidłowy format pliku backupu.");
+          throw new Error(tt('invalidBackupFormat'));
         }
       } catch (err) {
-        showCustomAlert("Błąd", "Plik nie jest prawidłowym backupem.");
+        showCustomAlert(tt('error'), tt('invalidBackup'));
       }
     };
     reader.readAsText(file);
   }
 
   function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) importData(file);
+    if (e.target.files[0]) importData(e.target.files[0]);
     e.target.value = null;
   }
 
   function resetAllMonths() {
     setCustomModal({
       open: true,
-      title: "Reset wszystkich danych",
-      message: "Czy na pewno chcesz usunąć dane ze wszystkich miesięcy? Zostanie utworzony tylko bieżący miesiąc z jednym taskiem.",
+      title: tt('resetAll'),
+      message: tt('resetAllConfirm'),
       onConfirm: () => {
         const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-        const defaultData = getDefaultMonthData();
-        setMonthsData({ [defaultKey]: defaultData });
-        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+        setMonthsData({ [defaultKey]: getDefaultMonthData(lang) });
+        setCustomModal({ open: false });
       },
       showCancel: true,
     });
   }
 
-  // ---------- OBLICZANIE LICZNIKÓW ----------
+  // ---------- LICZNIKI ----------
   const counts = {};
   colors.forEach(c => { counts[c.id] = 0; });
   Object.entries(ticks).forEach(([key, colorIds]) => {
@@ -602,30 +673,22 @@ export default function App() {
   // ---------- TRANSFER TASKÓW ----------
   const handleTransferTasks = () => {
     if (!transferSourceKey || !monthsData[transferSourceKey]) return;
-
     const sourceData = monthsData[transferSourceKey];
     const newColors = [];
     const newLabels = {};
-
     sourceData.colors.forEach((srcColor) => {
       const newId = Date.now() + Math.random();
-      newColors.push({
-        ...srcColor,
-        id: newId,
-        defaultLabel: srcColor.defaultLabel,
-      });
+      newColors.push({ ...srcColor, id: newId });
       newLabels[newId] = sourceData.labels[srcColor.id] || srcColor.defaultLabel;
     });
-
     setColors(newColors);
     setLabels(newLabels);
     setActiveColorId(newColors.length > 0 ? newColors[0].id : null);
-
     setTransferModalOpen(false);
     setTransferSourceKey("");
   };
 
-  // ---------- RENDEROWANIE CAŁEJ STRONY MIESIĄCA ----------
+  // ---------- RENDEROWANIE STRONY MIESIĄCA ----------
   const renderMonthPage = (year, month, isInteractive) => {
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthData = monthsData?.[monthKey] || { ticks: {}, notes: {} };
@@ -650,31 +713,15 @@ export default function App() {
       <div style={{ width: "100%", paddingBottom: 40 }}>
         {/* Nagłówek */}
         <div style={{
-          background: "#1a1a1a",
-          borderBottom: "1px solid #2a2a2a",
-          padding: "20px 20px 16px",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
+          background: "#1a1a1a", borderBottom: "1px solid #2a2a2a", padding: "20px 20px 16px",
+          position: "sticky", top: 0, zIndex: 10,
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <button
-              onClick={isInteractive ? prevMonth : undefined}
-              style={navBtnStyle}
-              disabled={!isInteractive}
-            >
-              ‹
-            </button>
+            <button onClick={isInteractive ? prevMonth : undefined} style={navBtnStyle} disabled={!isInteractive}>‹</button>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
-              {MONTHS_PL[month]} {year}
+              {tr.months[month]} {year}
             </span>
-            <button
-              onClick={isInteractive ? nextMonth : undefined}
-              style={navBtnStyle}
-              disabled={!isInteractive}
-            >
-              ›
-            </button>
+            <button onClick={isInteractive ? nextMonth : undefined} style={navBtnStyle} disabled={!isInteractive}>›</button>
           </div>
 
           <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", alignItems: "center", position: "relative" }}>
@@ -684,10 +731,8 @@ export default function App() {
                 onClick={() => isInteractive && setActiveColorId(c.id)}
                 title={getLabel(c.id)}
                 style={{
-                  width: 36, height: 36,
-                  borderRadius: "50%",
-                  background: c.hex,
-                  border: activeColorId === c.id ? `3px solid #fff` : "3px solid transparent",
+                  width: 36, height: 36, borderRadius: "50%", background: c.hex,
+                  border: activeColorId === c.id ? "3px solid #fff" : "3px solid transparent",
                   outline: activeColorId === c.id ? `2px solid ${c.hex}` : "none",
                   cursor: isInteractive ? "pointer" : "default",
                   transform: activeColorId === c.id ? "scale(1.2)" : "scale(1)",
@@ -700,17 +745,10 @@ export default function App() {
                 ref={addButtonRef}
                 onClick={() => setShowAddPalette(prev => !prev)}
                 style={{
-                  width: 36, height: 36,
-                  borderRadius: "50%",
-                  background: "#2a2a2a",
-                  border: "2px solid #444",
-                  cursor: "pointer",
-                  fontSize: 20,
-                  fontWeight: "bold",
-                  color: "#aaa",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  width: 36, height: 36, borderRadius: "50%", background: "#2a2a2a",
+                  border: "2px solid #444", cursor: "pointer", fontSize: 20,
+                  fontWeight: "bold", color: "#aaa", display: "flex",
+                  alignItems: "center", justifyContent: "center",
                 }}
               >
                 +
@@ -720,36 +758,17 @@ export default function App() {
               <div
                 id="add-palette-panel"
                 style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  marginTop: 12,
-                  background: "#1e1e1e",
-                  borderRadius: 20,
-                  padding: "12px 16px",
-                  display: "flex",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                  border: "1px solid #333",
-                  boxShadow: "0 8px 20px rgba(0,0,0,0.5)",
-                  zIndex: 20,
-                  minWidth: 200,
+                  position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+                  marginTop: 12, background: "#1e1e1e", borderRadius: 20, padding: "12px 16px",
+                  display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center",
+                  border: "1px solid #333", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", zIndex: 20, minWidth: 200,
                 }}
               >
                 {unusedColors.map((color, idx) => (
                   <button
                     key={idx}
                     onClick={() => addColorFromPalette(color)}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      background: color.hex,
-                      border: "2px solid #fff",
-                      cursor: "pointer",
-                    }}
+                    style={{ width: 36, height: 36, borderRadius: "50%", background: color.hex, border: "2px solid #fff", cursor: "pointer" }}
                     title={color.defaultLabel}
                   />
                 ))}
@@ -761,14 +780,11 @@ export default function App() {
         {/* Kalendarz */}
         <div style={{ padding: "16px 16px 0" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
-            {DAYS_PL.map(d => (
+            {tr.days.map(d => (
               <div key={d} style={{
-                textAlign: "center",
-                fontSize: 11,
-                fontWeight: 500,
-                color: d === "Sb" || d === "Nd" ? "#888" : "#666",
-                padding: "6px 0",
-                fontFamily: "'DM Mono', monospace",
+                textAlign: "center", fontSize: 11, fontWeight: 500,
+                color: d === "Sb" || d === "Nd" || d === "Sat" || d === "Sun" ? "#888" : "#666",
+                padding: "6px 0", fontFamily: "'DM Mono', monospace",
               }}>{d}</div>
             ))}
           </div>
@@ -778,9 +794,7 @@ export default function App() {
               if (!day) return <div key={`e${i}`} />;
               const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const tickColorIds = monthTicks[key] || [];
-              const colorHexes = tickColorIds
-                .map(id => colors.find(c => c.id === id)?.hex)
-                .filter(Boolean);
+              const colorHexes = tickColorIds.map(id => colors.find(c => c.id === id)?.hex).filter(Boolean);
               const today_ = isToday(day);
               const colIndex = i % 7;
               const isWeekend = colIndex === 5 || colIndex === 6;
@@ -795,20 +809,12 @@ export default function App() {
                   key={day}
                   onClick={isInteractive ? () => handleDayClick(day) : undefined}
                   style={{
-                    aspectRatio: "1",
-                    borderRadius: 10,
-                    border: isSelected
-                      ? "2px solid #4D9EFF"
-                      : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
+                    aspectRatio: "1", borderRadius: 10,
+                    border: isSelected ? "2px solid #4D9EFF" : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
                     background: colorHexes.length > 0 ? "#1f1f1f" : "#1a1a1a",
                     cursor: isInteractive ? "pointer" : "default",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 4,
-                    position: "relative",
-                    transition: "background 0.12s, transform 0.1s",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                    position: "relative", transition: "background 0.12s, transform 0.1s",
                     WebkitTapHighlightColor: "transparent",
                   }}
                   onTouchStart={isInteractive ? e => e.currentTarget.style.transform = "scale(0.93)" : undefined}
@@ -818,36 +824,26 @@ export default function App() {
                 >
                   {hasNote && (
                     <div style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: 4,
-                      backgroundColor: "#ff4d4d",
-                      borderTopLeftRadius: 8,
-                      borderTopRightRadius: 8,
+                      position: "absolute", top: 0, left: 0, width: "100%", height: 4,
+                      backgroundColor: "#ff4d4d", borderTopLeftRadius: 8, borderTopRightRadius: 8,
                     }} />
                   )}
                   <span style={{
-                    fontSize: 14,
-                    fontWeight: today_ ? 600 : 400,
+                    fontSize: 14, fontWeight: today_ ? 600 : 400,
                     color: isWeekend ? "#888" : (today_ ? "#fff" : "#d0d0d0"),
-                    fontFamily: "'DM Mono', monospace",
-                    lineHeight: 1,
-                  }}>
-                    {day}
-                  </span>
+                    fontFamily: "'DM Mono', monospace", lineHeight: 1,
+                  }}>{day}</span>
                   {colorHexes.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "center" }}>
                       {row1.length > 0 && (
-                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
+                        <div style={{ display: "flex", gap: 3 }}>
                           {row1.map((hex, idx) => (
                             <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
                           ))}
                         </div>
                       )}
                       {row2.length > 0 && (
-                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
+                        <div style={{ display: "flex", gap: 3 }}>
                           {row2.map((hex, idx) => (
                             <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
                           ))}
@@ -861,44 +857,34 @@ export default function App() {
           </div>
         </div>
 
-        {/* Panel notatek + Reset miesiąca */}
+        {/* Panel notatek + Reset */}
         {isInteractive && (
           <div style={{ padding: "20px 16px 0" }}>
             <div style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 10,
-              color: "#555",
-              letterSpacing: "0.1em",
-              marginBottom: 10,
-              textTransform: "uppercase",
+              fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
+              letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
             }}>
-              Notatki i zarządzanie miesiącem
+              {tt('notesManagement')}
             </div>
-            <div style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "nowrap",
-              width: "100%",
-              marginBottom: 12,
-            }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "nowrap", width: "100%", marginBottom: 12 }}>
               {selectedDate && notes[selectedDate] ? (
                 <>
-                  <button onClick={openNoteModal} style={{ ...wideButton, flex: 1 }}>✏️ Edytuj notatkę</button>
-                  <button onClick={viewNote} style={{ ...wideButton, flex: 1 }}>👁️ Zobacz notatkę</button>
-                  <button onClick={deleteNote} style={{ ...wideButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ Usuń notatkę</button>
+                  <button onClick={openNoteModal} style={{ ...wideButton, flex: 1 }}>✏️ {tt('editNote')}</button>
+                  <button onClick={viewNote} style={{ ...wideButton, flex: 1 }}>👁️ {tt('viewNote')}</button>
+                  <button onClick={deleteNote} style={{ ...wideButton, flex: 1, background: "#3a1a1a", borderColor: "#a00" }}>🗑️ {tt('deleteNote')}</button>
                 </>
               ) : (
-                <button onClick={openNoteModal} style={{ ...wideButton, width: "100%" }}>📝 Dodaj notatkę</button>
+                <button onClick={openNoteModal} style={{ ...wideButton, width: "100%" }}>📝 {tt('addNote')}</button>
               )}
             </div>
             <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               <button onClick={resetCurrentMonth} style={{ ...wideButton, flex: 1, background: "#2a2a2a", borderColor: "#a00" }}>
-                🔄 Resetuj miesiąc
+                🔄 {tt('resetMonth')}
               </button>
             </div>
             {selectedDate && (
               <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
-                Wybrany dzień: {selectedDate}
+                {tt('selectedDay')} {selectedDate}
               </div>
             )}
           </div>
@@ -908,61 +894,43 @@ export default function App() {
         {isInteractive && (
           <div style={{ padding: "0 16px" }}>
             <div style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 10,
-              color: "#555",
-              letterSpacing: "0.1em",
-              marginBottom: 10,
-              textTransform: "uppercase",
+              fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
+              letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
             }}>
-              Taski w tym miesiącu · Ten miesiąc · Łącznie
+              {tt('tasksHeader')}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {colors.map(c => (
                 <div key={c.id} style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 14px",
-                  background: "#1a1a1a",
-                  borderRadius: 12,
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+                  background: "#1a1a1a", borderRadius: 12,
                   border: activeColorId === c.id ? `1px solid ${c.hex}66` : "1px solid #2a2a2a",
                   cursor: "pointer",
-                }}
-                  onClick={() => setActiveColorId(c.id)}
-                >
+                }} onClick={() => setActiveColorId(c.id)}>
                   <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.hex, flexShrink: 0 }} />
                   {editingLabel === c.id ? (
                     <input
                       autoFocus
                       value={labelDraft}
                       onChange={e => setLabelDraft(e.target.value)}
-                      onBlur={() => {
-                        setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() }));
-                        setEditingLabel(null);
-                      }}
+                      onBlur={() => { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); }}
                       onKeyDown={e => { if (e.key === "Enter") { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); } if (e.key === "Escape") setEditingLabel(null); }}
                       onClick={e => e.stopPropagation()}
                       placeholder={c.defaultLabel}
                       style={{
-                        flex: 1,
-                        background: "transparent",
-                        border: "none",
-                        borderBottom: `1px solid ${c.hex}`,
-                        outline: "none",
-                        color: "#f0f0f0",
-                        fontSize: 14,
-                        padding: "2px 0",
+                        flex: 1, background: "transparent", border: "none",
+                        borderBottom: `1px solid ${c.hex}`, outline: "none",
+                        color: "#f0f0f0", fontSize: 14, padding: "2px 0",
                       }}
                     />
                   ) : (
                     <span
                       style={{ flex: 1, fontSize: 14, color: "#c0c0c0" }}
                       onDoubleClick={e => { e.stopPropagation(); setEditingLabel(c.id); setLabelDraft(labels[c.id] || ""); }}
-                      title="Kliknij dwukrotnie, aby edytować nazwę taska"
+                      title={tt('doubleClickTitle')}
                     >
                       {getLabel(c.id)}
-                      <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>Tapnij/Kliknij x2 aby zmienić nazwę.</span>
+                      <span style={{ fontSize: 10, color: "#444", marginLeft: 6 }}>{tt('doubleClickHint')}</span>
                     </span>
                   )}
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -975,32 +943,26 @@ export default function App() {
                     </span>
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); deleteColor(c.id); }}
+                    onClick={e => { e.stopPropagation(); deleteColor(c.id); }}
                     style={{
                       background: "none", border: "none", color: "#666", fontSize: 16, cursor: "pointer",
                       padding: "0 4px", borderRadius: 20, transition: "color 0.1s", fontWeight: "bold",
                     }}
                     onMouseEnter={e => e.currentTarget.style.color = "#ff8888"}
                     onMouseLeave={e => e.currentTarget.style.color = "#666"}
-                    title="Usuń task z tego miesiąca"
+                    title={tt('removeTask')}
                   >
                     ✕
                   </button>
                 </div>
               ))}
             </div>
-
             <div style={{ marginTop: 12 }}>
               <button
                 onClick={() => setTransferModalOpen(true)}
-                style={{
-                  ...wideButton,
-                  width: "100%",
-                  background: "#2a2a2a",
-                  borderColor: "#4D9EFF",
-                }}
+                style={{ ...wideButton, width: "100%", background: "#2a2a2a", borderColor: "#4D9EFF" }}
               >
-                📂 Przenieś taski
+                📂 {tt('transferTasks')}
               </button>
             </div>
           </div>
@@ -1009,23 +971,38 @@ export default function App() {
         {/* Stopka */}
         {isInteractive && (
           <div style={{
-            marginTop: 32,
-            borderTop: "1px solid #2a2a2a",
-            padding: "16px 16px 24px",
+            marginTop: 32, borderTop: "1px solid #2a2a2a", padding: "16px 16px 24px",
           }}>
-            <div style={{
-              display: "flex",
-              gap: 12,
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}>
-              <button onClick={exportData} style={footerButton}>📤 Eksportuj</button>
-              <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 Importuj</button>
-              <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 Resetuj wszystko</button>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+              <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
+              <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
+              <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
               <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
             </div>
-            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-              Backup i przywracanie danych (wszystkie miesiące)
+            <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 12 }}>
+              <button
+                onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
+                style={{
+                  background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                  filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)", opacity: lang === 'pl' ? 1 : 0.5,
+                }}
+                title="Polski"
+              >
+                🇵🇱
+              </button>
+              <button
+                onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
+                style={{
+                  background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                  filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)", opacity: lang === 'en' ? 1 : 0.5,
+                }}
+                title="English"
+              >
+                🇬🇧
+              </button>
+            </div>
+            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 8 }}>
+              {tt('backupInfo')}
             </div>
           </div>
         )}
@@ -1037,16 +1014,8 @@ export default function App() {
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", touchAction: "pan-y" }}>
       <div style={{ overflow: "hidden", width: "100%" }}>
-        <div
-          ref={slideContainerRef}
-          style={{
-            display: "flex",
-            width: "200%",
-          }}
-        >
-          {/* Kolejność dzieci zależy od slide.swap */}
+        <div ref={slideContainerRef} style={{ display: "flex", width: "200%" }}>
           {slide.active && slide.swap ? (
-            // Poprzedni miesiąc: target po lewej, current po prawej
             <>
               <div style={{ width: "50%", flexShrink: 0 }}>
                 {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
@@ -1056,7 +1025,6 @@ export default function App() {
               </div>
             </>
           ) : (
-            // Następny miesiąc (lub brak animacji): current po lewej, target po prawej
             <>
               <div style={{ width: "50%", flexShrink: 0 }}>
                 {renderMonthPage(viewYear, viewMonth, !slide.active)}
@@ -1071,23 +1039,24 @@ export default function App() {
         </div>
       </div>
 
-      {/* Modale (poza kontenerem slajdu, fixed) */}
+      {/* Modale */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
         }} onClick={() => setShowNoteModal(false)}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
             border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>Notatka dla dnia {selectedDate}</h3>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>
+              {tt('noteForDay', { date: selectedDate })}
+            </h3>
             <textarea
               autoFocus
               value={noteDraft}
               onChange={e => setNoteDraft(e.target.value)}
-              placeholder="Wpisz treść notatki..."
+              placeholder={tt('enterNote')}
               rows={5}
               style={{
                 width: "100%", background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
@@ -1096,8 +1065,12 @@ export default function App() {
               }}
             />
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowNoteModal(false)} style={{ ...modalButton, background: "#333" }}>Anuluj</button>
-              <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>Zapisz</button>
+              <button onClick={() => setShowNoteModal(false)} style={{ ...modalButton, background: "#333" }}>
+                {tt('cancel')}
+              </button>
+              <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>
+                {tt('save')}
+              </button>
             </div>
           </div>
         </div>
@@ -1106,14 +1079,13 @@ export default function App() {
       {viewNoteModal.open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
         }} onClick={() => setViewNoteModal({ open: false, noteText: "" })}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
             border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>Treść notatki</h3>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>{tt('noteContent')}</h3>
             <div style={{
               background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
               padding: 12, color: "#f0f0f0", fontSize: 14, fontFamily: "'DM Sans', sans-serif",
@@ -1122,7 +1094,9 @@ export default function App() {
               {viewNoteModal.noteText}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setViewNoteModal({ open: false, noteText: "" })} style={{ ...modalButton, background: "#4D9EFF" }}>OK</button>
+              <button onClick={() => setViewNoteModal({ open: false, noteText: "" })} style={{ ...modalButton, background: "#4D9EFF" }}>
+                {tt('ok')}
+              </button>
             </div>
           </div>
         </div>
@@ -1131,10 +1105,9 @@ export default function App() {
       {customModal.open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
         }} onClick={() => {
-          if (!customModal.showCancel) setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+          if (!customModal.showCancel) setCustomModal({ open: false });
         }}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 350,
@@ -1146,12 +1119,12 @@ export default function App() {
             </div>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               {customModal.showCancel && (
-                <button onClick={() => setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false })} style={{ ...modalButton, background: "#333" }}>
-                  Anuluj
+                <button onClick={() => setCustomModal({ open: false })} style={{ ...modalButton, background: "#333" }}>
+                  {tt('cancel')}
                 </button>
               )}
               <button onClick={() => { if (customModal.onConfirm) customModal.onConfirm(); }} style={{ ...modalButton, background: "#4D9EFF" }}>
-                OK
+                {tt('ok')}
               </button>
             </div>
           </div>
@@ -1161,15 +1134,14 @@ export default function App() {
       {transferModalOpen && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
         }} onClick={() => setTransferModalOpen(false)}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
             border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
           }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>
-              Wybierz miesiąc źródłowy
+              {tt('selectSourceMonth')}
             </h3>
             <select
               value={transferSourceKey}
@@ -1180,7 +1152,7 @@ export default function App() {
                 marginBottom: 20,
               }}
             >
-              <option value="">-- wybierz miesiąc --</option>
+              <option value="">-- {tt('selectSourceMonth')} --</option>
               {Object.keys(monthsData)
                 .sort()
                 .filter(key => key !== currentMonthKey)
@@ -1188,17 +1160,14 @@ export default function App() {
                   const [y, m] = key.split("-");
                   return (
                     <option key={key} value={key}>
-                      {MONTHS_PL[parseInt(m, 10) - 1]} {y}
+                      {tr.months[parseInt(m, 10) - 1]} {y}
                     </option>
                   );
                 })}
             </select>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setTransferModalOpen(false)}
-                style={{ ...modalButton, background: "#333" }}
-              >
-                Anuluj
+              <button onClick={() => setTransferModalOpen(false)} style={{ ...modalButton, background: "#333" }}>
+                {tt('cancel')}
               </button>
               <button
                 onClick={handleTransferTasks}
@@ -1209,7 +1178,7 @@ export default function App() {
                   opacity: transferSourceKey ? 1 : 0.5,
                 }}
               >
-                Przenieś
+                {tt('transfer')}
               </button>
             </div>
           </div>
@@ -1225,29 +1194,14 @@ const navBtnStyle = {
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 const wideButton = {
-  background: "#1a1a1a",
-  border: "1px solid #3a3a3a",
-  borderRadius: 40,
-  padding: "10px 0",
-  fontSize: "15px",
-  fontWeight: 500,
-  color: "#ddd",
-  cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif",
-  textAlign: "center",
-  transition: "background 0.1s",
+  background: "#1a1a1a", border: "1px solid #3a3a3a", borderRadius: 40, padding: "10px 0",
+  fontSize: "15px", fontWeight: 500, color: "#ddd", cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif", textAlign: "center", transition: "background 0.1s",
 };
 const footerButton = {
-  background: "#1a1a1a",
-  border: "1px solid #3a3a3a",
-  borderRadius: 30,
-  padding: "8px 16px",
-  fontSize: "14px",
-  fontWeight: 500,
-  color: "#ccc",
-  cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif",
-  transition: "background 0.1s",
+  background: "#1a1a1a", border: "1px solid #3a3a3a", borderRadius: 30, padding: "8px 16px",
+  fontSize: "14px", fontWeight: 500, color: "#ccc", cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif", transition: "background 0.1s",
 };
 const modalButton = {
   border: "none", borderRadius: 30, padding: "8px 20px", color: "#fff",
