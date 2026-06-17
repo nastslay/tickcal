@@ -712,7 +712,7 @@ export default function App() {
     );
 
     return (
-      <div style={{ width: "100%", paddingBottom: 40 }}>
+      <div style={{ width: "100%", paddingBottom: 0 }}>
         {/* Nagłówek */}
         <div style={{
           background: "#1a1a1a", borderBottom: "1px solid #2a2a2a", padding: "20px 20px 16px",
@@ -1024,7 +1024,7 @@ export default function App() {
 
   // ---------- RENDER GŁÓWNY ----------
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", touchAction: "pan-y" }}>
+    <div style={{ maxWidth: 480, margin: "0 auto", padding: "0", touchAction: "pan-y" }}>
       <div style={{ overflow: "hidden", width: "100%" }}>
         <div ref={slideContainerRef} style={{ display: "flex", width: "200%" }}>
           {slide.active && slide.swap ? (
