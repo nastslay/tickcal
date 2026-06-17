@@ -27,7 +27,8 @@ const translations = {
     ],
     days: ["Pn","Wt","Śr","Cz","Pt","Sb","Nd"],
     notesManagement: "Notatki i zarządzanie miesiącem",
-    tasksHeader: "Taski w tym miesiącu · Ten miesiąc · Łącznie",
+    tasksHeaderLeft: "Taski w tym miesiącu",
+    tasksHeaderRight: "Ten miesiąc · Łącznie",
     transferTasks: "Przenieś taski",
     export: "Eksportuj",
     import: "Importuj",
@@ -79,7 +80,8 @@ const translations = {
     ],
     days: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
     notesManagement: "Notes & month management",
-    tasksHeader: "Tasks this month · This month · Total",
+    tasksHeaderLeft: "Tasks this month",
+    tasksHeaderRight: "This month · Total",
     transferTasks: "Transfer tasks",
     export: "Export",
     import: "Import",
@@ -894,10 +896,17 @@ export default function App() {
         {isInteractive && (
           <div style={{ padding: "0 16px" }}>
             <div style={{
-              fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
-              letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
+              display: "flex",
+              justifyContent: "space-between",
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 10,
+              color: "#555",
+              letterSpacing: "0.1em",
+              marginBottom: 10,
+              textTransform: "uppercase",
             }}>
-              {tt('tasksHeader')}
+              <span>{tt('tasksHeaderLeft')}</span>
+              <span>{tt('tasksHeaderRight')}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {colors.map(c => (
@@ -971,7 +980,9 @@ export default function App() {
         {/* Stopka */}
         {isInteractive && (
           <div style={{
-            marginTop: 32, borderTop: "1px solid #2a2a2a", padding: "16px 16px 24px",
+            marginTop: 32,
+            borderTop: "1px solid #2a2a2a",
+            padding: "16px 16px 24px",
           }}>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
               <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
@@ -979,7 +990,11 @@ export default function App() {
               <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
               <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
             </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 12 }}>
+            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+              {tt('backupInfo')}
+            </div>
+            {/* 🆕 Flagi na samym dole, wyrównane do lewej */}
+            <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
               <button
                 onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
                 style={{
@@ -1000,9 +1015,6 @@ export default function App() {
               >
                 🇬🇧
               </button>
-            </div>
-            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 8 }}>
-              {tt('backupInfo')}
             </div>
           </div>
         )}
