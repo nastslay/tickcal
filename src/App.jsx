@@ -18,7 +18,7 @@ const MAX_COLORS = 6;
 const STORAGE_KEY = "tickcal_v8";
 const LANG_KEY = "tickcal_lang";
 
-// ---------- TŁUMACZENIA ----------
+// ---------- TŁUMACZENIA (polski / angielski) ----------
 const translations = {
   pl: {
     months: [
@@ -128,7 +128,7 @@ const translations = {
   }
 };
 
-// ---------- POMOCNICZE FUNKCJE ----------
+// ---------- POMOCNICZE FUNKCJE (localStorage, migracja danych) ----------
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -242,7 +242,6 @@ export default function App() {
   });
   const tr = translations[lang];
 
-  // Pomocnicza funkcja tłumacząca
   const tt = useCallback((key, vars = {}) => {
     let str = translations[lang][key] || key;
     Object.entries(vars).forEach(([k, v]) => {
@@ -322,7 +321,7 @@ export default function App() {
         if (!container) return;
         container.style.transition = "none";
         container.style.transform = `translateX(${startTranslate}%)`;
-        container.offsetHeight;
+        container.offsetHeight; // reflow
         container.style.transition = "transform 0.4s ease";
         container.style.transform = `translateX(${endTranslate}%)`;
 
@@ -349,7 +348,7 @@ export default function App() {
   function prevMonth() { navigateMonth(-1); }
   function nextMonth() { navigateMonth(1); }
 
-  // ---------- SWIPE ----------
+  // ---------- SWIPE (przesuwanie palcem) ----------
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const touchStartTime = useRef(null);
@@ -361,33 +360,52 @@ export default function App() {
     function onTouchStart(e) {
       const tag = e.target.tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'button' || e.target.closest('button')) return;
+
       touchStartX.current = e.changedTouches[0].screenX;
       touchStartY.current = e.changedTouches[0].screenY;
       touchStartTime.current = Date.now();
     }
+
     function onTouchMove(e) {
       if (touchStartX.current === null) return;
-      const diffX = Math.abs(touchStartX.current - e.changedTouches[0].screenX);
-      const diffY = Math.abs(touchStartY.current - e.changedTouches[0].screenY);
-      if (diffX > 15 && diffX > diffY * 1.5) e.preventDefault?.();
+      const currentX = e.changedTouches[0].screenX;
+      const currentY = e.changedTouches[0].screenY;
+      const diffX = Math.abs(touchStartX.current - currentX);
+      const diffY = Math.abs(touchStartY.current - currentY);
+
+      if (diffX > 15 && diffX > diffY * 1.5) {
+        e.preventDefault?.();
+      }
     }
+
     function onTouchEnd(e) {
       if (touchStartX.current === null) return;
+
       const endX = e.changedTouches[0].screenX;
       const endY = e.changedTouches[0].screenY;
       const diffX = touchStartX.current - endX;
       const diffY = touchStartY.current - endY;
       const elapsed = Date.now() - touchStartTime.current;
+
       touchStartX.current = null;
       touchStartY.current = null;
       touchStartTime.current = null;
-      if (elapsed > SWIPE_MAX_TIME || Math.abs(diffY) > SWIPE_MAX_Y || Math.abs(diffX) < SWIPE_THRESHOLD) return;
-      if (diffX > 0) navigateMonth(1);
-      else navigateMonth(-1);
+
+      if (elapsed > SWIPE_MAX_TIME) return;
+      if (Math.abs(diffY) > SWIPE_MAX_Y) return;
+      if (Math.abs(diffX) < SWIPE_THRESHOLD) return;
+
+      if (diffX > 0) {
+        navigateMonth(1);
+      } else {
+        navigateMonth(-1);
+      }
     }
+
     window.addEventListener('touchstart', onTouchStart, { passive: false });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd, { passive: true });
+
     return () => {
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
@@ -403,18 +421,22 @@ export default function App() {
       setMonthsData(migrated.monthsData);
     } else {
       const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-      setMonthsData({ [defaultKey]: getDefaultMonthData(lang) });
+      const defaultData = getDefaultMonthData(lang);
+      setMonthsData({ [defaultKey]: defaultData });
     }
     setIsDataLoaded(true);
   }, []); // eslint-disable-line
 
   useEffect(() => {
     if (!isDataLoaded || monthsData === null) return;
-    if (Object.keys(monthsData).length > 0) saveState({ version: 8, monthsData });
+    if (Object.keys(monthsData).length > 0) {
+      saveState({ version: 8, monthsData });
+    }
   }, [monthsData, isDataLoaded]);
 
   useEffect(() => {
     if (!isDataLoaded || monthsData === null) return;
+
     const key = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
     setCurrentMonthKey(key);
     let data = monthsData[key];
@@ -432,7 +454,14 @@ export default function App() {
 
   useEffect(() => {
     if (!currentMonthKey || !isDataLoaded || monthsData === null) return;
-    setMonthsData(prev => ({ ...prev, [currentMonthKey]: { colors, ticks, labels, notes, activeColorId } }));
+    const data = {
+      colors,
+      ticks,
+      labels,
+      notes,
+      activeColorId,
+    };
+    setMonthsData(prev => ({ ...prev, [currentMonthKey]: data }));
   }, [colors, ticks, labels, notes, activeColorId, currentMonthKey, isDataLoaded]);
 
   // ---------- HANDLERY ----------
@@ -483,7 +512,8 @@ export default function App() {
       setShowAddPalette(false);
       return;
     }
-    if (colors.some(c => c.hex === paletteColor.hex)) {
+    const alreadyExists = colors.some(c => c.hex === paletteColor.hex);
+    if (alreadyExists) {
       showCustomAlert(tt('limit'), tt('colorAlreadyAdded'));
       setShowAddPalette(false);
       return;
@@ -522,35 +552,39 @@ export default function App() {
           const { [colorId]: _, ...rest } = prev;
           return rest;
         });
-        setCustomModal({ open: false });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
   }
 
   function resetCurrentMonth() {
-    if (!currentMonthKey) return;
+    const key = currentMonthKey;
+    if (!key) return;
     setCustomModal({
       open: true,
       title: tt('resetMonth'),
       message: tt('resetMonthConfirm', { month: tr.months[viewMonth], year: viewYear }),
       onConfirm: () => {
-        setMonthsData(prev => ({ ...prev, [currentMonthKey]: getDefaultMonthData(lang) }));
-        setCustomModal({ open: false });
+        const newData = getDefaultMonthData(lang);
+        setMonthsData(prev => ({ ...prev, [key]: newData }));
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
   }
 
-  // ---------- NOTATKI ----------
+  // ---------- OPERACJE NA NOTATKACH ----------
   function openNoteModal() {
     if (!selectedDate) {
       showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
       return;
     }
-    setNoteDraft(notes[selectedDate] || "");
+    const existingNote = notes[selectedDate] || "";
+    setNoteDraft(existingNote);
     setShowNoteModal(true);
   }
+
   function saveNote() {
     if (!selectedDate) return;
     if (noteDraft.trim() === "") {
@@ -564,15 +598,20 @@ export default function App() {
     setShowNoteModal(false);
     setNoteDraft("");
   }
+
   function viewNote() {
     if (!selectedDate) {
       showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
       return;
     }
     const note = notes[selectedDate];
-    if (!note) showCustomAlert(tt('note'), tt('noNoteForDay'));
-    else setViewNoteModal({ open: true, noteText: note });
+    if (!note) {
+      showCustomAlert(tt('note'), tt('noNoteForDay'));
+    } else {
+      setViewNoteModal({ open: true, noteText: note });
+    }
   }
+
   function deleteNote() {
     if (!selectedDate) {
       showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
@@ -591,17 +630,18 @@ export default function App() {
           const { [selectedDate]: _, ...rest } = prev;
           return rest;
         });
-        setCustomModal({ open: false });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
   }
+
   function showCustomAlert(title, message) {
     setCustomModal({
       open: true,
       title,
       message,
-      onConfirm: () => setCustomModal({ open: false }),
+      onConfirm: () => setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false }),
       showCancel: false,
     });
   }
@@ -625,7 +665,8 @@ export default function App() {
         const imported = JSON.parse(e.target.result);
         if (!imported || typeof imported !== "object") throw new Error(tt('invalidFormat'));
         if (imported.version >= 6 && imported.monthsData) {
-          setMonthsData(migrateData(imported).monthsData);
+          const migrated = migrateData(imported);
+          setMonthsData(migrated.monthsData);
           showCustomAlert(tt('success'), tt('dataImported'));
         } else {
           throw new Error(tt('invalidBackupFormat'));
@@ -638,7 +679,8 @@ export default function App() {
   }
 
   function handleFileSelect(e) {
-    if (e.target.files[0]) importData(e.target.files[0]);
+    const file = e.target.files[0];
+    if (file) importData(file);
     e.target.value = null;
   }
 
@@ -649,14 +691,15 @@ export default function App() {
       message: tt('resetAllConfirm'),
       onConfirm: () => {
         const defaultKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-        setMonthsData({ [defaultKey]: getDefaultMonthData(lang) });
-        setCustomModal({ open: false });
+        const defaultData = getDefaultMonthData(lang);
+        setMonthsData({ [defaultKey]: defaultData });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
       },
       showCancel: true,
     });
   }
 
-  // ---------- LICZNIKI ----------
+  // ---------- OBLICZANIE LICZNIKÓW ----------
   const counts = {};
   colors.forEach(c => { counts[c.id] = 0; });
   Object.entries(ticks).forEach(([key, colorIds]) => {
@@ -675,22 +718,30 @@ export default function App() {
   // ---------- TRANSFER TASKÓW ----------
   const handleTransferTasks = () => {
     if (!transferSourceKey || !monthsData[transferSourceKey]) return;
+
     const sourceData = monthsData[transferSourceKey];
     const newColors = [];
     const newLabels = {};
+
     sourceData.colors.forEach((srcColor) => {
       const newId = Date.now() + Math.random();
-      newColors.push({ ...srcColor, id: newId });
+      newColors.push({
+        ...srcColor,
+        id: newId,
+        defaultLabel: srcColor.defaultLabel,
+      });
       newLabels[newId] = sourceData.labels[srcColor.id] || srcColor.defaultLabel;
     });
+
     setColors(newColors);
     setLabels(newLabels);
     setActiveColorId(newColors.length > 0 ? newColors[0].id : null);
+
     setTransferModalOpen(false);
     setTransferSourceKey("");
   };
 
-  // ---------- RENDEROWANIE STRONY MIESIĄCA ----------
+  // ---------- RENDEROWANIE CAŁEJ STRONY MIESIĄCA ----------
   const renderMonthPage = (year, month, isInteractive) => {
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthData = monthsData?.[monthKey] || { ticks: {}, notes: {} };
@@ -712,18 +763,34 @@ export default function App() {
     );
 
     return (
-      <div style={{ width: "100%", paddingBottom: 0 }}>
+      <div style={{ width: "100%" }}>
         {/* Nagłówek */}
         <div style={{
-          background: "#1a1a1a", borderBottom: "1px solid #2a2a2a", padding: "20px 20px 16px",
-          position: "sticky", top: 0, zIndex: 10,
+          background: "#1a1a1a",
+          borderBottom: "1px solid #2a2a2a",
+          padding: "20px 20px 16px",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <button onClick={isInteractive ? prevMonth : undefined} style={navBtnStyle} disabled={!isInteractive}>‹</button>
+            <button
+              onClick={isInteractive ? prevMonth : undefined}
+              style={navBtnStyle}
+              disabled={!isInteractive}
+            >
+              ‹
+            </button>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
               {tr.months[month]} {year}
             </span>
-            <button onClick={isInteractive ? nextMonth : undefined} style={navBtnStyle} disabled={!isInteractive}>›</button>
+            <button
+              onClick={isInteractive ? nextMonth : undefined}
+              style={navBtnStyle}
+              disabled={!isInteractive}
+            >
+              ›
+            </button>
           </div>
 
           <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", alignItems: "center", position: "relative" }}>
@@ -733,8 +800,10 @@ export default function App() {
                 onClick={() => isInteractive && setActiveColorId(c.id)}
                 title={getLabel(c.id)}
                 style={{
-                  width: 36, height: 36, borderRadius: "50%", background: c.hex,
-                  border: activeColorId === c.id ? "3px solid #fff" : "3px solid transparent",
+                  width: 36, height: 36,
+                  borderRadius: "50%",
+                  background: c.hex,
+                  border: activeColorId === c.id ? `3px solid #fff` : "3px solid transparent",
                   outline: activeColorId === c.id ? `2px solid ${c.hex}` : "none",
                   cursor: isInteractive ? "pointer" : "default",
                   transform: activeColorId === c.id ? "scale(1.2)" : "scale(1)",
@@ -747,10 +816,17 @@ export default function App() {
                 ref={addButtonRef}
                 onClick={() => setShowAddPalette(prev => !prev)}
                 style={{
-                  width: 36, height: 36, borderRadius: "50%", background: "#2a2a2a",
-                  border: "2px solid #444", cursor: "pointer", fontSize: 20,
-                  fontWeight: "bold", color: "#aaa", display: "flex",
-                  alignItems: "center", justifyContent: "center",
+                  width: 36, height: 36,
+                  borderRadius: "50%",
+                  background: "#2a2a2a",
+                  border: "2px solid #444",
+                  cursor: "pointer",
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  color: "#aaa",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 +
@@ -760,17 +836,36 @@ export default function App() {
               <div
                 id="add-palette-panel"
                 style={{
-                  position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
-                  marginTop: 12, background: "#1e1e1e", borderRadius: 20, padding: "12px 16px",
-                  display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center",
-                  border: "1px solid #333", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", zIndex: 20, minWidth: 200,
+                  position: "absolute",
+                  top: "100%",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  marginTop: 12,
+                  background: "#1e1e1e",
+                  borderRadius: 20,
+                  padding: "12px 16px",
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  border: "1px solid #333",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.5)",
+                  zIndex: 20,
+                  minWidth: 200,
                 }}
               >
                 {unusedColors.map((color, idx) => (
                   <button
                     key={idx}
                     onClick={() => addColorFromPalette(color)}
-                    style={{ width: 36, height: 36, borderRadius: "50%", background: color.hex, border: "2px solid #fff", cursor: "pointer" }}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: color.hex,
+                      border: "2px solid #fff",
+                      cursor: "pointer",
+                    }}
                     title={color.defaultLabel}
                   />
                 ))}
@@ -784,9 +879,12 @@ export default function App() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
             {tr.days.map(d => (
               <div key={d} style={{
-                textAlign: "center", fontSize: 11, fontWeight: 500,
+                textAlign: "center",
+                fontSize: 11,
+                fontWeight: 500,
                 color: d === "Sb" || d === "Nd" || d === "Sat" || d === "Sun" ? "#888" : "#666",
-                padding: "6px 0", fontFamily: "'DM Mono', monospace",
+                padding: "6px 0",
+                fontFamily: "'DM Mono', monospace",
               }}>{d}</div>
             ))}
           </div>
@@ -796,7 +894,9 @@ export default function App() {
               if (!day) return <div key={`e${i}`} />;
               const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const tickColorIds = monthTicks[key] || [];
-              const colorHexes = tickColorIds.map(id => colors.find(c => c.id === id)?.hex).filter(Boolean);
+              const colorHexes = tickColorIds
+                .map(id => colors.find(c => c.id === id)?.hex)
+                .filter(Boolean);
               const today_ = isToday(day);
               const colIndex = i % 7;
               const isWeekend = colIndex === 5 || colIndex === 6;
@@ -811,12 +911,20 @@ export default function App() {
                   key={day}
                   onClick={isInteractive ? () => handleDayClick(day) : undefined}
                   style={{
-                    aspectRatio: "1", borderRadius: 10,
-                    border: isSelected ? "2px solid #4D9EFF" : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
+                    aspectRatio: "1",
+                    borderRadius: 10,
+                    border: isSelected
+                      ? "2px solid #4D9EFF"
+                      : today_ ? "2px solid #f0f0f0" : "2px solid transparent",
                     background: colorHexes.length > 0 ? "#1f1f1f" : "#1a1a1a",
                     cursor: isInteractive ? "pointer" : "default",
-                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
-                    position: "relative", transition: "background 0.12s, transform 0.1s",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    position: "relative",
+                    transition: "background 0.12s, transform 0.1s",
                     WebkitTapHighlightColor: "transparent",
                   }}
                   onTouchStart={isInteractive ? e => e.currentTarget.style.transform = "scale(0.93)" : undefined}
@@ -826,26 +934,36 @@ export default function App() {
                 >
                   {hasNote && (
                     <div style={{
-                      position: "absolute", top: 0, left: 0, width: "100%", height: 4,
-                      backgroundColor: "#ff4d4d", borderTopLeftRadius: 8, borderTopRightRadius: 8,
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: 4,
+                      backgroundColor: "#ff4d4d",
+                      borderTopLeftRadius: 8,
+                      borderTopRightRadius: 8,
                     }} />
                   )}
                   <span style={{
-                    fontSize: 14, fontWeight: today_ ? 600 : 400,
+                    fontSize: 14,
+                    fontWeight: today_ ? 600 : 400,
                     color: isWeekend ? "#888" : (today_ ? "#fff" : "#d0d0d0"),
-                    fontFamily: "'DM Mono', monospace", lineHeight: 1,
-                  }}>{day}</span>
+                    fontFamily: "'DM Mono', monospace",
+                    lineHeight: 1,
+                  }}>
+                    {day}
+                  </span>
                   {colorHexes.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "center" }}>
                       {row1.length > 0 && (
-                        <div style={{ display: "flex", gap: 3 }}>
+                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
                           {row1.map((hex, idx) => (
                             <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
                           ))}
                         </div>
                       )}
                       {row2.length > 0 && (
-                        <div style={{ display: "flex", gap: 3 }}>
+                        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
                           {row2.map((hex, idx) => (
                             <div key={idx} style={{ width: 9, height: 9, borderRadius: "50%", background: hex }} />
                           ))}
@@ -859,16 +977,26 @@ export default function App() {
           </div>
         </div>
 
-        {/* Panel notatek + Reset */}
+        {/* Panel notatek + Reset miesiąca */}
         {isInteractive && (
           <div style={{ padding: "20px 16px 0" }}>
             <div style={{
-              fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
-              letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 10,
+              color: "#555",
+              letterSpacing: "0.1em",
+              marginBottom: 10,
+              textTransform: "uppercase",
             }}>
               {tt('notesManagement')}
             </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "nowrap", width: "100%", marginBottom: 12 }}>
+            <div style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "nowrap",
+              width: "100%",
+              marginBottom: 12,
+            }}>
               {selectedDate && notes[selectedDate] ? (
                 <>
                   <button onClick={openNoteModal} style={{ ...wideButton, flex: 1 }}>✏️ {tt('editNote')}</button>
@@ -892,7 +1020,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Lista tasków */}
+        {/* Lista tasków w bieżącym miesiącu */}
         {isInteractive && (
           <div style={{ padding: "0 16px" }}>
             <div style={{
@@ -911,25 +1039,39 @@ export default function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {colors.map(c => (
                 <div key={c.id} style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
-                  background: "#1a1a1a", borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  background: "#1a1a1a",
+                  borderRadius: 12,
                   border: activeColorId === c.id ? `1px solid ${c.hex}66` : "1px solid #2a2a2a",
                   cursor: "pointer",
-                }} onClick={() => setActiveColorId(c.id)}>
+                }}
+                  onClick={() => setActiveColorId(c.id)}
+                >
                   <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.hex, flexShrink: 0 }} />
                   {editingLabel === c.id ? (
                     <input
                       autoFocus
                       value={labelDraft}
                       onChange={e => setLabelDraft(e.target.value)}
-                      onBlur={() => { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); }}
+                      onBlur={() => {
+                        setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() }));
+                        setEditingLabel(null);
+                      }}
                       onKeyDown={e => { if (e.key === "Enter") { setLabels(prev => ({ ...prev, [c.id]: labelDraft.trim() })); setEditingLabel(null); } if (e.key === "Escape") setEditingLabel(null); }}
                       onClick={e => e.stopPropagation()}
                       placeholder={c.defaultLabel}
                       style={{
-                        flex: 1, background: "transparent", border: "none",
-                        borderBottom: `1px solid ${c.hex}`, outline: "none",
-                        color: "#f0f0f0", fontSize: 14, padding: "2px 0",
+                        flex: 1,
+                        background: "transparent",
+                        border: "none",
+                        borderBottom: `1px solid ${c.hex}`,
+                        outline: "none",
+                        color: "#f0f0f0",
+                        fontSize: 14,
+                        padding: "2px 0",
                       }}
                     />
                   ) : (
@@ -952,7 +1094,7 @@ export default function App() {
                     </span>
                   </div>
                   <button
-                    onClick={e => { e.stopPropagation(); deleteColor(c.id); }}
+                    onClick={(e) => { e.stopPropagation(); deleteColor(c.id); }}
                     style={{
                       background: "none", border: "none", color: "#666", fontSize: 16, cursor: "pointer",
                       padding: "0 4px", borderRadius: 20, transition: "color 0.1s", fontWeight: "bold",
@@ -966,54 +1108,19 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            {/* Przycisk przenoszenia tasków */}
             <div style={{ marginTop: 12 }}>
               <button
                 onClick={() => setTransferModalOpen(true)}
-                style={{ ...wideButton, width: "100%", background: "#2a2a2a", borderColor: "#4D9EFF" }}
+                style={{
+                  ...wideButton,
+                  width: "100%",
+                  background: "#2a2a2a",
+                  borderColor: "#4D9EFF",
+                }}
               >
                 📂 {tt('transferTasks')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Stopka */}
-        {isInteractive && (
-          <div style={{
-            marginTop: 32,
-            borderTop: "1px solid #2a2a2a",
-            padding: "16px 16px 24px",
-          }}>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
-              <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
-              <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
-              <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
-              <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
-            </div>
-            <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-              {tt('backupInfo')}
-            </div>
-            {/* 🆕 Flagi na samym dole, wyrównane do lewej */}
-            <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
-              <button
-                onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
-                style={{
-                  background: "none", border: "none", fontSize: 22, cursor: "pointer",
-                  filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)", opacity: lang === 'pl' ? 1 : 0.5,
-                }}
-                title="Polski"
-              >
-                🇵🇱
-              </button>
-              <button
-                onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
-                style={{
-                  background: "none", border: "none", fontSize: 22, cursor: "pointer",
-                  filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)", opacity: lang === 'en' ? 1 : 0.5,
-                }}
-                title="English"
-              >
-                🇬🇧
               </button>
             </div>
           </div>
@@ -1024,9 +1131,16 @@ export default function App() {
 
   // ---------- RENDER GŁÓWNY ----------
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", padding: "0", touchAction: "pan-y" }}>
-      <div style={{ overflow: "hidden", width: "100%" }}>
-        <div ref={slideContainerRef} style={{ display: "flex", width: "200%" }}>
+    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
+      {/* Kontener slajdu obejmujący całą zawartość */}
+      <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
+        <div
+          ref={slideContainerRef}
+          style={{
+            display: "flex",
+            width: "200%",
+          }}
+        >
           {slide.active && slide.swap ? (
             <>
               <div style={{ width: "50%", flexShrink: 0 }}>
@@ -1051,19 +1165,61 @@ export default function App() {
         </div>
       </div>
 
-      {/* Modale */}
+      {/* STOPKA – ZAWSZE NA DOLE (poza slajdem) */}
+      {!slide.active && (
+        <div style={{
+          borderTop: "1px solid #2a2a2a",
+          padding: "16px 16px 24px",
+          background: "#1a1a1a",
+        }}>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
+            <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
+            <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
+            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
+          </div>
+          <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+            {tt('backupInfo')}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
+            <button
+              onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
+              style={{
+                background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)",
+                opacity: lang === 'pl' ? 1 : 0.5,
+              }}
+              title="Polski"
+            >
+              🇵🇱
+            </button>
+            <button
+              onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
+              style={{
+                background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)",
+                opacity: lang === 'en' ? 1 : 0.5,
+              }}
+              title="English"
+            >
+              🇬🇧
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE (poza kontenerem slajdu, są fixed) */}
       {showNoteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
         }} onClick={() => setShowNoteModal(false)}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
             border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>
-              {tt('noteForDay', { date: selectedDate })}
-            </h3>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>{tt('noteForDay', { date: selectedDate })}</h3>
             <textarea
               autoFocus
               value={noteDraft}
@@ -1077,12 +1233,8 @@ export default function App() {
               }}
             />
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowNoteModal(false)} style={{ ...modalButton, background: "#333" }}>
-                {tt('cancel')}
-              </button>
-              <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>
-                {tt('save')}
-              </button>
+              <button onClick={() => setShowNoteModal(false)} style={{ ...modalButton, background: "#333" }}>{tt('cancel')}</button>
+              <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>{tt('save')}</button>
             </div>
           </div>
         </div>
@@ -1091,7 +1243,8 @@ export default function App() {
       {viewNoteModal.open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
         }} onClick={() => setViewNoteModal({ open: false, noteText: "" })}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
@@ -1106,9 +1259,7 @@ export default function App() {
               {viewNoteModal.noteText}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setViewNoteModal({ open: false, noteText: "" })} style={{ ...modalButton, background: "#4D9EFF" }}>
-                {tt('ok')}
-              </button>
+              <button onClick={() => setViewNoteModal({ open: false, noteText: "" })} style={{ ...modalButton, background: "#4D9EFF" }}>{tt('ok')}</button>
             </div>
           </div>
         </div>
@@ -1117,9 +1268,10 @@ export default function App() {
       {customModal.open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
         }} onClick={() => {
-          if (!customModal.showCancel) setCustomModal({ open: false });
+          if (!customModal.showCancel) setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
         }}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 350,
@@ -1131,7 +1283,7 @@ export default function App() {
             </div>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               {customModal.showCancel && (
-                <button onClick={() => setCustomModal({ open: false })} style={{ ...modalButton, background: "#333" }}>
+                <button onClick={() => setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false })} style={{ ...modalButton, background: "#333" }}>
                   {tt('cancel')}
                 </button>
               )}
@@ -1146,7 +1298,8 @@ export default function App() {
       {transferModalOpen && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
         }} onClick={() => setTransferModalOpen(false)}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
@@ -1178,7 +1331,10 @@ export default function App() {
                 })}
             </select>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button onClick={() => setTransferModalOpen(false)} style={{ ...modalButton, background: "#333" }}>
+              <button
+                onClick={() => setTransferModalOpen(false)}
+                style={{ ...modalButton, background: "#333" }}
+              >
                 {tt('cancel')}
               </button>
               <button
@@ -1206,14 +1362,29 @@ const navBtnStyle = {
   cursor: "pointer", padding: "0 8px", lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
 };
 const wideButton = {
-  background: "#1a1a1a", border: "1px solid #3a3a3a", borderRadius: 40, padding: "10px 0",
-  fontSize: "15px", fontWeight: 500, color: "#ddd", cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif", textAlign: "center", transition: "background 0.1s",
+  background: "#1a1a1a",
+  border: "1px solid #3a3a3a",
+  borderRadius: 40,
+  padding: "10px 0",
+  fontSize: "15px",
+  fontWeight: 500,
+  color: "#ddd",
+  cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif",
+  textAlign: "center",
+  transition: "background 0.1s",
 };
 const footerButton = {
-  background: "#1a1a1a", border: "1px solid #3a3a3a", borderRadius: 30, padding: "8px 16px",
-  fontSize: "14px", fontWeight: 500, color: "#ccc", cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif", transition: "background 0.1s",
+  background: "#1a1a1a",
+  border: "1px solid #3a3a3a",
+  borderRadius: 30,
+  padding: "8px 16px",
+  fontSize: "14px",
+  fontWeight: 500,
+  color: "#ccc",
+  cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif",
+  transition: "background 0.1s",
 };
 const modalButton = {
   border: "none", borderRadius: 30, padding: "8px 20px", color: "#fff",
