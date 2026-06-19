@@ -17,7 +17,8 @@ const MASTER_PALETTE = [
 const MAX_COLORS = 6;
 const STORAGE_KEY = "tickcal_v8";
 const LANG_KEY = "tickcal_lang";
-const PWA_DISMISSED_KEY = "tickcal_pwa_dismissed"; // PWA
+const PWA_DISMISS_KEY = "tickcal_pwa_install_dismissed";
+const PWA_DISMISS_DAYS = 7;
 
 // ---------- TŁUMACZENIA (polski / angielski) ----------
 const translations = {
@@ -67,17 +68,17 @@ const translations = {
     ok: "OK",
     noteContent: "Treść notatki",
     noteForDay: "Notatka dla dnia {date}",
-    enterNote: "Wpisz treść notatkę...",
+    enterNote: "Wpisz treść notatki...",
     doubleClickToRename: "Tapnij/Kliknij x2 aby zmienić nazwę.",
     doubleClickHint: "x2 aby zmienić nazwę",
     doubleClickTitle: "Kliknij dwukrotnie, aby edytować nazwę taska",
     removeTask: "Usuń task z tego miesiąca",
     defaultTaskLabel: "Zadanie",
-    // PWA
-    installApp: "Zainstaluj aplikację",
-    installAppDesc: "Dodaj TickCal do ekranu głównego, aby mieć do niego szybki dostęp.",
-    install: "Zainstaluj",
-    later: "Później",
+    installAppTitle: "Zainstaluj TickCal",
+    installAppDesc: "Dodaj aplikację do ekranu głównego, aby otwierać ją jak zwykłą appkę, nawet offline.",
+    installAppIOSDesc: "Stuknij ikonę Udostępnij, a następnie wybierz „Dodaj do ekranu początkowego”.",
+    installAppButton: "Zainstaluj",
+    installAppDismiss: "Nie teraz",
   },
   en: {
     months: [
@@ -131,11 +132,11 @@ const translations = {
     doubleClickTitle: "Double-click to edit task name",
     removeTask: "Remove task from this month",
     defaultTaskLabel: "Task",
-    // PWA
-    installApp: "Install app",
-    installAppDesc: "Add TickCal to your home screen for quick access.",
-    install: "Install",
-    later: "Later",
+    installAppTitle: "Install TickCal",
+    installAppDesc: "Add the app to your home screen to open it like a regular app, even offline.",
+    installAppIOSDesc: "Tap the Share icon, then choose “Add to Home Screen”.",
+    installAppButton: "Install",
+    installAppDismiss: "Not now",
   }
 };
 
@@ -266,39 +267,6 @@ export default function App() {
     localStorage.setItem(LANG_KEY, lang);
   }, [lang]);
 
-  // PWA – prompt instalacji
-  const [pwaPrompt, setPwaPrompt] = useState(null);
-  const [showPwaBanner, setShowPwaBanner] = useState(false);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem(PWA_DISMISSED_KEY);
-    if (dismissed) return;
-
-    const handler = (e) => {
-      e.preventDefault();
-      setPwaPrompt(e);
-      setShowPwaBanner(true);
-    };
-
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const handleInstallPwa = async () => {
-    if (!pwaPrompt) return;
-    pwaPrompt.prompt();
-    const { outcome } = await pwaPrompt.userChoice;
-    if (outcome === "accepted") {
-      setShowPwaBanner(false);
-      setPwaPrompt(null);
-    }
-  };
-
-  const handleDismissPwa = () => {
-    setShowPwaBanner(false);
-    localStorage.setItem(PWA_DISMISSED_KEY, "1");
-  };
-
   // Animacja slajdu – przesuwa CAŁY widok miesiąca
   const [slide, setSlide] = useState({
     active: false,
@@ -331,6 +299,77 @@ export default function App() {
   // Przenoszenie tasków
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferSourceKey, setTransferSourceKey] = useState("");
+
+  // ---------- PWA: rejestracja service workera ----------
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.error("Rejestracja service workera nie powiodła się:", err);
+      });
+    });
+  }, []);
+
+  // ---------- PWA: prompt instalacji ----------
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+    if (isStandalone) return;
+
+    const dismissedAt = parseInt(localStorage.getItem(PWA_DISMISS_KEY) || "0", 10);
+    const dismissedRecently =
+      dismissedAt && Date.now() - dismissedAt < PWA_DISMISS_DAYS * 24 * 60 * 60 * 1000;
+    if (dismissedRecently) return;
+
+    const ua = window.navigator.userAgent || "";
+    const iOS = /iphone|ipad|ipod/i.test(ua) && !window.MSStream;
+    setIsIOSDevice(iOS);
+
+    if (iOS) {
+      // Safari na iOS nie wspiera beforeinstallprompt - pokazujemy instrukcję ręczną
+      setShowInstallBanner(true);
+      return;
+    }
+
+    function handleBeforeInstallPrompt(e) {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+      setShowInstallBanner(true);
+    }
+    function handleAppInstalled() {
+      setShowInstallBanner(false);
+      setDeferredInstallPrompt(null);
+      localStorage.removeItem(PWA_DISMISS_KEY);
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = useCallback(async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    setDeferredInstallPrompt(null);
+    setShowInstallBanner(false);
+    if (outcome !== "accepted") {
+      localStorage.setItem(PWA_DISMISS_KEY, String(Date.now()));
+    }
+  }, [deferredInstallPrompt]);
+
+  const dismissInstallBanner = useCallback(() => {
+    setShowInstallBanner(false);
+    localStorage.setItem(PWA_DISMISS_KEY, String(Date.now()));
+  }, []);
 
   // ---------- NAWIGACJA Z ANIMACJĄ ----------
   const navigateMonth = useCallback(
@@ -1209,74 +1248,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* BANNER PWA */}
-      {showPwaBanner && (
-        <div style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: "#1e1e1e",
-          borderTop: "1px solid #333",
-          padding: "16px 20px 20px",
-          zIndex: 2000,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          boxShadow: "0 -4px 20px rgba(0,0,0,0.5)",
-        }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-            <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "#0f0f0f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              flexShrink: 0,
-            }}>
-              📅
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", marginBottom: 4 }}>
-                {tt('installApp')}
-              </div>
-              <div style={{ fontSize: 13, color: "#999", lineHeight: 1.4 }}>
-                {tt('installAppDesc')}
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button
-              onClick={handleDismissPwa}
-              style={{
-                ...modalButton,
-                background: "transparent",
-                color: "#888",
-                border: "1px solid #444",
-              }}
-            >
-              {tt('later')}
-            </button>
-            <button
-              onClick={handleInstallPwa}
-              style={{ ...modalButton, background: "#4D9EFF" }}
-            >
-              {tt('install')}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* STOPKA – ZAWSZE NA DOLE (poza slajdem) */}
       {!slide.active && (
         <div style={{
           borderTop: "1px solid #2a2a2a",
           padding: "16px 16px 24px",
           background: "#1a1a1a",
-          marginBottom: showPwaBanner ? 140 : 0,
         }}>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
             <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
@@ -1453,6 +1430,67 @@ export default function App() {
                 }}
               >
                 {tt('transfer')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInstallBanner && (
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1500,
+            display: "flex",
+            justifyContent: "center",
+            padding: "0 12px 12px",
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              pointerEvents: "auto",
+              width: "100%",
+              maxWidth: 456,
+              background: "#1e1e1e",
+              border: "1px solid #333",
+              borderRadius: 20,
+              padding: "14px 14px 14px 16px",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>📲</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>
+                {tt('installAppTitle')}
+              </div>
+              <div style={{ fontSize: 12, color: "#aaa", marginTop: 2, lineHeight: 1.4 }}>
+                {isIOSDevice ? tt('installAppIOSDesc') : tt('installAppDesc')}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+              {!isIOSDevice && (
+                <button
+                  onClick={handleInstallClick}
+                  style={{ ...modalButton, background: "#4D9EFF", padding: "7px 14px", fontSize: 13, whiteSpace: "nowrap" }}
+                >
+                  {tt('installAppButton')}
+                </button>
+              )}
+              <button
+                onClick={dismissInstallBanner}
+                style={{
+                  background: "none", border: "none", color: "#888", fontSize: 12,
+                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "4px 0",
+                }}
+              >
+                {tt('installAppDismiss')}
               </button>
             </div>
           </div>
