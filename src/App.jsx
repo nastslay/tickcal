@@ -883,7 +883,9 @@ export default function App() {
 
     const legendMap = {};
     report.forEach(m => m.tasks.forEach(t => {
-      if (!legendMap[t.hex]) legendMap[t.hex] = t.label;
+      if (!legendMap[t.hex]) legendMap[t.hex] = { label: t.label, count: 0 };
+      legendMap[t.hex].label = t.label;
+      legendMap[t.hex].count += t.count;
     }));
 
     return (
@@ -978,10 +980,11 @@ export default function App() {
           {/* Legenda */}
           {Object.keys(legendMap).length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "20px 0 8px" }}>
-              {Object.entries(legendMap).map(([hex, label]) => (
+              {Object.entries(legendMap).map(([hex, info]) => (
                 <div key={hex} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ width: 9, height: 9, borderRadius: "50%", background: hex, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#999" }}>{label}</span>
+                  <span style={{ fontSize: 12, color: "#999" }}>{info.label}</span>
+                  <span style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>{info.count}</span>
                 </div>
               ))}
             </div>
