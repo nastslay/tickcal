@@ -79,6 +79,11 @@ const translations = {
     installAppIOSDesc: "Stuknij ikonę Udostępnij, a następnie wybierz „Dodaj do ekranu początkowego”.",
     installAppButton: "Zainstaluj",
     installAppDismiss: "Nie teraz",
+    report: "Raport",
+    selectYear: "Wybierz rok",
+    yearlyOverview: "Podsumowanie roku",
+    monthlyBreakdown: "Rozbicie na miesiące",
+    noActivity: "Brak aktywności",
   },
   en: {
     months: [
@@ -137,6 +142,11 @@ const translations = {
     installAppIOSDesc: "Tap the Share icon, then choose “Add to Home Screen”.",
     installAppButton: "Install",
     installAppDismiss: "Not now",
+    report: "Report",
+    selectYear: "Select year",
+    yearlyOverview: "Year overview",
+    monthlyBreakdown: "Monthly breakdown",
+    noActivity: "No activity",
   }
 };
 
@@ -299,6 +309,10 @@ export default function App() {
   // Przenoszenie tasków
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferSourceKey, setTransferSourceKey] = useState("");
+
+  // Widok: kalendarz vs raport roczny
+  const [view, setView] = useState("calendar");
+  const [reportYear, setReportYear] = useState(today.getFullYear());
 
   // ---------- PWA: rejestracja service workera ----------
   useEffect(() => {
@@ -824,6 +838,203 @@ export default function App() {
     setTransferSourceKey("");
   };
 
+  // ---------- RAPORT ROCZNY ----------
+  function getAvailableYears() {
+    const years = new Set();
+    Object.keys(monthsData || {}).forEach(key => {
+      const y = parseInt(key.split("-")[0], 10);
+      if (!isNaN(y)) years.add(y);
+    });
+    years.add(today.getFullYear());
+    years.add(reportYear);
+    return Array.from(years).sort((a, b) => a - b);
+  }
+
+  function computeYearReport(year) {
+    const result = [];
+    for (let month = 0; month < 12; month++) {
+      const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+      const data = monthsData?.[key];
+      if (!data) {
+        result.push({ monthIndex: month, total: 0, tasks: [] });
+        continue;
+      }
+      const monthCounts = {};
+      Object.values(data.ticks || {}).forEach(colorIds => {
+        colorIds.forEach(id => { monthCounts[id] = (monthCounts[id] || 0) + 1; });
+      });
+      const tasks = (data.colors || []).map(c => ({
+        hex: c.hex,
+        label: data.labels?.[c.id] || c.defaultLabel,
+        count: monthCounts[c.id] || 0,
+      }));
+      const total = tasks.reduce((s, t) => s + t.count, 0);
+      result.push({ monthIndex: month, total, tasks });
+    }
+    return result;
+  }
+
+  // ---------- RENDEROWANIE RAPORTU ROCZNEGO ----------
+  const renderReportPage = () => {
+    const years = getAvailableYears();
+    const report = computeYearReport(reportYear);
+    const maxTotal = Math.max(1, ...report.map(m => m.total));
+    const yearTotal = report.reduce((s, m) => s + m.total, 0);
+
+    const legendMap = {};
+    report.forEach(m => m.tasks.forEach(t => {
+      if (!legendMap[t.hex]) legendMap[t.hex] = t.label;
+    }));
+
+    return (
+      <div style={{ width: "100%" }}>
+        {/* Nagłówek */}
+        <div style={{
+          background: "#1a1a1a",
+          borderBottom: "1px solid #2a2a2a",
+          padding: "20px 20px 16px",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <button onClick={() => setView("calendar")} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
+              {tt('report')}
+            </span>
+            <span style={{ width: 26 }} />
+          </div>
+          <select
+            value={reportYear}
+            onChange={(e) => setReportYear(parseInt(e.target.value, 10))}
+            style={{
+              width: "100%",
+              background: "#0f0f0f",
+              border: "1px solid #444",
+              borderRadius: 12,
+              padding: 10,
+              color: "#f0f0f0",
+              fontSize: 14,
+              fontFamily: "'DM Mono', monospace",
+            }}
+          >
+            {years.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ padding: "20px 16px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+            <span style={{
+              fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
+              letterSpacing: "0.1em", textTransform: "uppercase",
+            }}>
+              {tt('yearlyOverview')}
+            </span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: "#fff" }}>
+              {yearTotal}
+            </span>
+          </div>
+
+          {/* Wykres słupkowy */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 140, padding: "0 2px" }}>
+            {report.map(m => (
+              <div key={m.monthIndex} style={{
+                flex: 1, height: "100%", display: "flex",
+                flexDirection: "column", justifyContent: "flex-end", alignItems: "center",
+              }}>
+                <div style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column-reverse",
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  height: `${m.total > 0 ? Math.max((m.total / maxTotal) * 100, 6) : 0}%`,
+                  background: m.total > 0 ? "#0f0f0f" : "transparent",
+                }}>
+                  {m.tasks.filter(t => t.count > 0).map((t, idx) => (
+                    <div key={idx} style={{
+                      width: "100%",
+                      height: `${(t.count / m.total) * 100}%`,
+                      background: t.hex,
+                    }} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, padding: "6px 2px 0" }}>
+            {report.map(m => (
+              <div key={m.monthIndex} style={{
+                flex: 1, textAlign: "center", fontFamily: "'DM Mono', monospace",
+                fontSize: 10, color: m.monthIndex === today.getMonth() && reportYear === today.getFullYear() ? "#fff" : "#666",
+              }}>
+                {tr.months[m.monthIndex].slice(0, 3)}
+              </div>
+            ))}
+          </div>
+
+          {/* Legenda */}
+          {Object.keys(legendMap).length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "20px 0 8px" }}>
+              {Object.entries(legendMap).map(([hex, label]) => (
+                <div key={hex} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 9, height: 9, borderRadius: "50%", background: hex, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "#999" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Rozbicie na miesiące */}
+        <div style={{ padding: "20px 16px 24px" }}>
+          <div style={{
+            fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
+            letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
+          }}>
+            {tt('monthlyBreakdown')}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {report.map(m => (
+              <div key={m.monthIndex} style={{
+                padding: "10px 14px",
+                background: "#1a1a1a",
+                borderRadius: 12,
+                border: "1px solid #2a2a2a",
+              }}>
+                <div style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  marginBottom: m.tasks.some(t => t.count > 0) ? 8 : 0,
+                }}>
+                  <span style={{ fontSize: 14, color: "#ddd" }}>{tr.months[m.monthIndex]}</span>
+                  <span style={{
+                    fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 500,
+                    color: m.total > 0 ? "#fff" : "#444",
+                  }}>
+                    {m.total > 0 ? m.total : "—"}
+                  </span>
+                </div>
+                {m.tasks.filter(t => t.count > 0).length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {m.tasks.filter(t => t.count > 0).map((t, idx) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.hex, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: "#999" }}>{t.label}</span>
+                        <span style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>{t.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ---------- RENDEROWANIE CAŁEJ STRONY MIESIĄCA ----------
   const renderMonthPage = (year, month, isInteractive) => {
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
@@ -1215,6 +1426,10 @@ export default function App() {
   // ---------- RENDER GŁÓWNY ----------
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
+      {view === "report" ? (
+        renderReportPage()
+      ) : (
+      <>
       {/* Kontener slajdu obejmujący całą zawartość */}
       <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
         <div
@@ -1256,6 +1471,7 @@ export default function App() {
           background: "#1a1a1a",
         }}>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={() => { setReportYear(viewYear); setView("report"); }} style={footerButton}>📊 {tt('report')}</button>
             <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
             <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
             <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
@@ -1289,6 +1505,8 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* MODALE (poza kontenerem slajdu, są fixed) */}
