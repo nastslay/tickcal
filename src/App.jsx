@@ -16,6 +16,21 @@ const MASTER_PALETTE = [
 
 const MAX_COLORS = 6;
 const STORAGE_KEY = "tickcal_v8";
+
+const NOTE_EMOJIS = [
+  // Nastrój
+  "😊","😄","😁","🙂","😐","😔","😢","😭","😤","😠","😡","🤬",
+  "😰","😨","😱","🤩","😍","🥰","😎","🤔","🤗","😴","🥱","🤒",
+  "🤕","🥳","😇","🤧","😮","🫠",
+  // Aktywność / życie
+  "💪","🏃","🧘","🏋️","🚴","🛌","🍽️","☕","🍕","🍺","🎉","🎂",
+  "🎁","🎶","📚","💼","🏠","✈️","🚗","💊","🩺","🧪","🌿","☀️",
+  "🌧️","⚡","❄️","🔥","💧","🌈",
+  // Symbole
+  "✅","❌","⭐","💡","💬","📌","🔔","❤️","💔","💯","🚀","🎯",
+  "🔑","⏰","💰","📈","📉","🛒","🔒","✍️",
+];
+
 const LANG_KEY = "tickcal_lang";
 const PWA_DISMISS_KEY = "tickcal_pwa_install_dismissed";
 const PWA_DISMISS_DAYS = 7;
@@ -302,9 +317,11 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
+  const [noteEmoji, setNoteEmoji] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [customModal, setCustomModal] = useState({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
-  const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "" });
+  const [viewNoteModal, setViewNoteModal] = useState({ open: false, noteText: "", noteEmoji: "", taskId: null });
 
   // Przenoszenie tasków
   const [transferModalOpen, setTransferModalOpen] = useState(false);
@@ -677,23 +694,36 @@ export default function App() {
       showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
       return;
     }
-    const existingNote = notes[selectedDate] || "";
-    setNoteDraft(existingNote);
+    const existing = notes[selectedDate];
+    const existingText = typeof existing === "object" ? (existing.text || "") : (existing || "");
+    const existingEmoji = typeof existing === "object" ? (existing.emoji || "") : "";
+    setNoteDraft(existingText);
+    setNoteEmoji(existingEmoji);
+    setShowEmojiPicker(false);
     setShowNoteModal(true);
   }
 
   function saveNote() {
     if (!selectedDate) return;
-    if (noteDraft.trim() === "") {
+    if (noteDraft.trim() === "" && noteEmoji === "") {
       setNotes(prev => {
         const { [selectedDate]: _, ...rest } = prev;
         return rest;
       });
     } else {
-      setNotes(prev => ({ ...prev, [selectedDate]: noteDraft.trim() }));
+      setNotes(prev => ({
+        ...prev,
+        [selectedDate]: {
+          text: noteDraft.trim(),
+          emoji: noteEmoji,
+          taskId: activeColorId,
+        },
+      }));
     }
     setShowNoteModal(false);
     setNoteDraft("");
+    setNoteEmoji("");
+    setShowEmojiPicker(false);
   }
 
   function viewNote() {
@@ -705,7 +735,10 @@ export default function App() {
     if (!note) {
       showCustomAlert(tt('note'), tt('noNoteForDay'));
     } else {
-      setViewNoteModal({ open: true, noteText: note });
+      const noteText = typeof note === "object" ? (note.text || "") : note;
+      const noteEmoji = typeof note === "object" ? (note.emoji || "") : "";
+      const taskId = typeof note === "object" ? (note.taskId || null) : null;
+      setViewNoteModal({ open: true, noteText, noteEmoji, taskId });
     }
   }
 
@@ -1198,6 +1231,7 @@ export default function App() {
               const colIndex = i % 7;
               const isWeekend = colIndex === 5 || colIndex === 6;
               const hasNote = !!monthNotes[key];
+              const tileEmoji = hasNote && typeof monthNotes[key] === "object" ? (monthNotes[key].emoji || "") : "";
               const isSelected = selectedDate === key && isInteractive;
 
               const row1 = colorHexes.slice(0, 3);
@@ -1241,6 +1275,17 @@ export default function App() {
                       borderTopRightRadius: 8,
                     }} />
                   )}
+                  {tileEmoji ? (
+                    <div style={{
+                      position: "absolute",
+                      top: 6,
+                      right: 3,
+                      fontSize: 22,
+                      lineHeight: 1,
+                    }}>
+                      {tileEmoji}
+                    </div>
+                  ) : null}
                   <span style={{
                     fontSize: 14,
                     fontWeight: today_ ? 600 : 400,
@@ -1407,7 +1452,7 @@ export default function App() {
             </div>
 
             {/* Przycisk przenoszenia tasków */}
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 12, paddingBottom: 24 }}>
               <button
                 onClick={() => setTransferModalOpen(true)}
                 style={{
@@ -1518,12 +1563,95 @@ export default function App() {
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
           background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1000,
-        }} onClick={() => setShowNoteModal(false)}>
+        }} onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
             border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            position: "relative",
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>{tt('noteForDay', { date: selectedDate })}</h3>
+
+            {/* Emoji button – prawy górny róg */}
+            <div style={{ position: "absolute", top: 18, right: 18 }}>
+              <button
+                onClick={() => setShowEmojiPicker(p => !p)}
+                style={{
+                  background: noteEmoji ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)",
+                  border: "1px solid #444",
+                  borderRadius: 10,
+                  width: 36, height: 36,
+                  fontSize: noteEmoji ? 20 : 16,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "background 0.1s",
+                }}
+                title="Wybierz emotikonę"
+              >
+                {noteEmoji || "🙂"}
+              </button>
+
+              {showEmojiPicker && (
+                <div style={{
+                  position: "absolute", top: 42, right: 0,
+                  background: "#252525", border: "1px solid #3a3a3a",
+                  borderRadius: 16, padding: 10,
+                  display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: 4, zIndex: 10,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+                  width: 222, maxHeight: 240, overflowY: "auto",
+                }}>
+                  {noteEmoji && (
+                    <button
+                      onClick={() => { setNoteEmoji(""); setShowEmojiPicker(false); }}
+                      style={{
+                        gridColumn: "1 / -1", background: "#1a1a1a", border: "1px solid #444",
+                        borderRadius: 8, padding: "4px 0", color: "#888", fontSize: 11,
+                        cursor: "pointer", marginBottom: 4, fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      ✕ usuń emotikonę
+                    </button>
+                  )}
+                  {NOTE_EMOJIS.map((em, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setNoteEmoji(em); setShowEmojiPicker(false); }}
+                      style={{
+                        background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
+                        border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
+                        borderRadius: 8, fontSize: 18, cursor: "pointer",
+                        width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tytuł */}
+            <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", paddingRight: 44 }}>
+              {tt('noteForDay', { date: selectedDate })}
+            </h3>
+
+            {/* Info o tasku */}
+            {activeColorId && (() => {
+              const activeColor = colors.find(c => c.id === activeColorId);
+              const activeLabel = getLabel(activeColorId);
+              return activeColor ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, color: "#999" }}>
+                    {lang === 'pl' ? 'Notatka dla:' : 'Note for:'}
+                  </span>
+                  <span style={{
+                    display: "inline-block", width: 10, height: 10, borderRadius: "50%",
+                    background: activeColor.hex, flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: 13, color: "#ddd", fontWeight: 500 }}>{activeLabel}</span>
+                </div>
+              ) : null;
+            })()}
+
             <textarea
               autoFocus
               value={noteDraft}
@@ -1533,11 +1661,11 @@ export default function App() {
               style={{
                 width: "100%", background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
                 padding: 12, color: "#f0f0f0", fontSize: 14, fontFamily: "'DM Sans', sans-serif",
-                resize: "vertical",
+                resize: "vertical", boxSizing: "border-box",
               }}
             />
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowNoteModal(false)} style={{ ...modalButton, background: "#333" }}>{tt('cancel')}</button>
+              <button onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }} style={{ ...modalButton, background: "#333" }}>{tt('cancel')}</button>
               <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>{tt('save')}</button>
             </div>
           </div>
@@ -1549,12 +1677,41 @@ export default function App() {
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
           background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1000,
-        }} onClick={() => setViewNoteModal({ open: false, noteText: "" })}>
+        }} onClick={() => setViewNoteModal({ open: false, noteText: "", noteEmoji: "", taskId: null })}>
           <div style={{
             background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
             border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            position: "relative",
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, color: "#fff" }}>{tt('noteContent')}</h3>
+            {/* Emoji w prawym górnym rogu */}
+            {viewNoteModal.noteEmoji && (
+              <div style={{
+                position: "absolute", top: 18, right: 20,
+                fontSize: 26, lineHeight: 1,
+              }}>
+                {viewNoteModal.noteEmoji}
+              </div>
+            )}
+            <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", paddingRight: viewNoteModal.noteEmoji ? 44 : 0 }}>
+              {tt('noteContent')}
+            </h3>
+            {/* Info o tasku */}
+            {viewNoteModal.taskId && (() => {
+              const taskColor = colors.find(c => c.id === viewNoteModal.taskId);
+              const taskLabel = taskColor ? getLabel(viewNoteModal.taskId) : null;
+              return taskColor ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 14 }}>
+                  <span style={{ fontSize: 13, color: "#999" }}>
+                    {lang === 'pl' ? 'Notatka dla:' : 'Note for:'}
+                  </span>
+                  <span style={{
+                    display: "inline-block", width: 10, height: 10, borderRadius: "50%",
+                    background: taskColor.hex, flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: 13, color: "#ddd", fontWeight: 500 }}>{taskLabel}</span>
+                </div>
+              ) : null;
+            })()}
             <div style={{
               background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
               padding: 12, color: "#f0f0f0", fontSize: 14, fontFamily: "'DM Sans', sans-serif",
@@ -1563,7 +1720,7 @@ export default function App() {
               {viewNoteModal.noteText}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setViewNoteModal({ open: false, noteText: "" })} style={{ ...modalButton, background: "#4D9EFF" }}>{tt('ok')}</button>
+              <button onClick={() => setViewNoteModal({ open: false, noteText: "", noteEmoji: "", taskId: null })} style={{ ...modalButton, background: "#4D9EFF" }}>{tt('ok')}</button>
             </div>
           </div>
         </div>
