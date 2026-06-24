@@ -68,6 +68,7 @@ const translations = {
     maxTasks: "Możesz dodać maksymalnie {max} tasków w tym miesiącu.",
     colorAlreadyAdded: "Ten kolor jest już dodany w tym miesiącu.",
     minOneTask: "W tym miesiącu musi pozostać przynajmniej jeden task.",
+	resetDay: "Resetuj dzień",
     resetMonthConfirm: "Czy na pewno chcesz zresetować miesiąc {month} {year}? Wszystkie taski, zaznaczenia i notatki zostaną usunięte, pozostanie tylko jeden task (Task 1).",
     resetAllConfirm: "Czy na pewno chcesz usunąć dane ze wszystkich miesięcy? Zostanie utworzony tylko bieżący miesiąc z jednym taskiem.",
     success: "Sukces",
@@ -131,6 +132,7 @@ const translations = {
     maxTasks: "You can add up to {max} tasks in this month.",
     colorAlreadyAdded: "This color is already added in this month.",
     minOneTask: "At least one task must remain in this month.",
+	resetDay: "Reset day",
     resetMonthConfirm: "Are you sure you want to reset the month {month} {year}? All tasks, marks, and notes will be deleted, leaving only one task (Task 1).",
     resetAllConfirm: "Are you sure you want to delete data from all months? Only the current month with one task will be created.",
     success: "Success",
@@ -688,6 +690,32 @@ export default function App() {
     });
   }
 
+function resetCurrentDay() {
+    if (!selectedDate) {
+      showCustomAlert(tt('noSelection'), tt('clickDayFirst'));
+      return;
+    }
+    setCustomModal({
+      open: true,
+      title: tt('resetDay'),
+      message: tt('resetDayConfirm'),
+      onConfirm: () => {
+        // Usuwanie tasków (ticks)
+        setTicks(prev => {
+          const { [selectedDate]: _, ...rest } = prev;
+          return rest;
+        });
+        // Usuwanie notatki
+        setNotes(prev => {
+          const { [selectedDate]: _, ...rest } = prev;
+          return rest;
+        });
+        setCustomModal({ open: false, title: "", message: "", onConfirm: null, showCancel: false });
+      },
+      showCancel: true,
+    });
+  }
+  
   // ---------- OPERACJE NA NOTATKACH ----------
   function openNoteModal() {
     if (!selectedDate) {
@@ -1263,16 +1291,16 @@ export default function App() {
                   onMouseDown={isInteractive ? e => e.currentTarget.style.transform = "scale(0.93)" : undefined}
                   onMouseUp={isInteractive ? e => e.currentTarget.style.transform = "scale(1)" : undefined}
                 >
-                  {hasNote && (
+				  {hasNote && (
                     <div style={{
                       position: "absolute",
                       top: 0,
                       left: 0,
-                      width: "100%",
-                      height: 4,
+                      width: 6,
+                      height: 22,
                       backgroundColor: "#ff4d4d",
                       borderTopLeftRadius: 8,
-                      borderTopRightRadius: 8,
+                      borderBottomRightRadius: 6,
                     }} />
                   )}
                   {tileEmoji ? (
@@ -1349,9 +1377,9 @@ export default function App() {
                 <button onClick={openNoteModal} style={{ ...wideButton, width: "100%" }}>📝 {tt('addNote')}</button>
               )}
             </div>
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-              <button onClick={resetCurrentMonth} style={{ ...wideButton, flex: 1, background: "#2a2a2a", borderColor: "#a00" }}>
-                🔄 {tt('resetMonth')}
+			<div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <button onClick={resetCurrentDay} style={{ ...wideButton, flex: 1, background: "#2a2a2a", borderColor: "#a00" }}>
+                🧹 {tt('resetDay')}
               </button>
             </div>
             {selectedDate && (
@@ -1451,8 +1479,8 @@ export default function App() {
               ))}
             </div>
 
-            {/* Przycisk przenoszenia tasków */}
-            <div style={{ marginTop: 12, paddingBottom: 24 }}>
+			{/* Przycisk przenoszenia tasków i Reset miesiąca */}
+            <div style={{ marginTop: 12, paddingBottom: 24, display: "flex", flexDirection: "column", gap: 12 }}>
               <button
                 onClick={() => setTransferModalOpen(true)}
                 style={{
@@ -1463,6 +1491,9 @@ export default function App() {
                 }}
               >
                 📂 {tt('transferTasks')}
+              </button>
+              <button onClick={resetCurrentMonth} style={{ ...wideButton, width: "100%", background: "#2a2a2a", borderColor: "#a00" }}>
+                🔄 {tt('resetMonth')}
               </button>
             </div>
           </div>
