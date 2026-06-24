@@ -1323,7 +1323,7 @@ function resetCurrentDay() {
                   {tileEmoji ? (
                     <div style={{
                       position: "absolute",
-                      top: 6,
+                      top: 4,
                       right: 1,
                       fontSize: 15,
                       lineHeight: 1,
