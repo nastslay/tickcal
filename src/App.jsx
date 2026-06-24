@@ -1278,9 +1278,9 @@ export default function App() {
                   {tileEmoji ? (
                     <div style={{
                       position: "absolute",
-                      top: 6,
-                      right: 3,
-                      fontSize: 22,
+                      top: 4,
+                      right: 4,
+                      fontSize: 15,
                       lineHeight: 1,
                     }}>
                       {tileEmoji}
