@@ -937,189 +937,185 @@ function resetCurrentDay() {
 
   // ---------- RENDEROWANIE RAPORTU ROCZNEGO ----------
   const renderReportPage = () => {
-	const handleReportTouchStart = (e) => {
-      touchStartX.current = e.changedTouches[0].screenX;
-    };
+  // touch handlers
+  const handleReportTouchStart = (e) => {
+    touchStartX.current = e.changedTouches[0].screenX;
+  };
+  const handleReportTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const endX = e.changedTouches[0].screenX;
+    const diffX = endX - touchStartX.current;
+    if (diffX > 80) {
+      setView("calendar");
+    }
+    touchStartX.current = null;
+  };
 
-    const handleReportTouchEnd = (e) => {
-      if (touchStartX.current === null) return;
-      const endX = e.changedTouches[0].screenX;
-      const diffX = endX - touchStartX.current;
-      
-      // Jeśli swipe w prawo jest wystarczająco duży (np. > 80px)
-      if (diffX > 80) {
-        setView("calendar");
-      }
-      touchStartX.current = null;
-    };
+  // computations (moved out of JSX)
+  const years = getAvailableYears();
+  const report = computeYearReport(reportYear);
+  const maxTotal = Math.max(1, ...report.map(m => m.total));
+  const yearTotal = report.reduce((s, m) => s + m.total, 0);
 
-    return (
-      <div 
-        style={{ width: "100%" }} 
-        onTouchStart={handleReportTouchStart} 
-        onTouchEnd={handleReportTouchEnd}
-      >
-    const years = getAvailableYears();
-    const report = computeYearReport(reportYear);
-    const maxTotal = Math.max(1, ...report.map(m => m.total));
-    const yearTotal = report.reduce((s, m) => s + m.total, 0);
-
-    const legendMap = {};
-    report.forEach(m => m.tasks.forEach(t => {
+  const legendMap = {};
+  report.forEach(m =>
+    m.tasks.forEach(t => {
       if (!legendMap[t.hex]) legendMap[t.hex] = { label: t.label, count: 0 };
       legendMap[t.hex].label = t.label;
       legendMap[t.hex].count += t.count;
-    }));
+    })
+  );
 
-    return (
-      <div style={{ width: "100%" }}>
-        {/* Nagłówek */}
-        <div style={{
-          background: "#1a1a1a",
-          borderBottom: "1px solid #2a2a2a",
-          padding: "20px 20px 16px",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <button onClick={() => setView("calendar")} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
-              {tt('report')}
-            </span>
-            <span style={{ width: 26 }} />
-          </div>
-          <select
-            value={reportYear}
-            onChange={(e) => setReportYear(parseInt(e.target.value, 10))}
-            style={{
-              width: "100%",
-              background: "#0f0f0f",
-              border: "1px solid #444",
-              borderRadius: 12,
-              padding: 10,
-              color: "#f0f0f0",
-              fontSize: 14,
-              fontFamily: "'DM Mono', monospace",
-            }}
-          >
-            {years.map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+  // single JSX return
+  return (
+    <div style={{ width: "100%" }} onTouchStart={handleReportTouchStart} onTouchEnd={handleReportTouchEnd}>
+      {/* Nagłówek */}
+      <div style={{
+        background: "#1a1a1a",
+        borderBottom: "1px solid #2a2a2a",
+        padding: "20px 20px 16px",
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <button onClick={() => setView("calendar")} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
+            {tt('report')}
+          </span>
+          <span style={{ width: 26 }} />
+        </div>
+        <select
+          value={reportYear}
+          onChange={(e) => setReportYear(parseInt(e.target.value, 10))}
+          style={{
+            width: "100%",
+            background: "#0f0f0f",
+            border: "1px solid #444",
+            borderRadius: 12,
+            padding: 10,
+            color: "#f0f0f0",
+            fontSize: 14,
+            fontFamily: "'DM Mono', monospace",
+          }}
+        >
+          {years.map(y => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ padding: "20px 16px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+          <span style={{
+            fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
+            letterSpacing: "0.1em", textTransform: "uppercase",
+          }}>
+            {tt('yearlyOverview')}
+          </span>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: "#fff" }}>
+            {yearTotal}
+          </span>
         </div>
 
-        <div style={{ padding: "20px 16px 0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-            <span style={{
-              fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
-              letterSpacing: "0.1em", textTransform: "uppercase",
+        {/* Wykres słupkowy */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 140, padding: "0 2px" }}>
+          {report.map(m => (
+            <div key={m.monthIndex} style={{
+              flex: 1, height: "100%", display: "flex",
+              flexDirection: "column", justifyContent: "flex-end", alignItems: "center",
             }}>
-              {tt('yearlyOverview')}
-            </span>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: "#fff" }}>
-              {yearTotal}
-            </span>
-          </div>
-
-          {/* Wykres słupkowy */}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 140, padding: "0 2px" }}>
-            {report.map(m => (
-              <div key={m.monthIndex} style={{
-                flex: 1, height: "100%", display: "flex",
-                flexDirection: "column", justifyContent: "flex-end", alignItems: "center",
+              <div style={{
+                width: "100%",
+                display: "flex",
+                flexDirection: "column-reverse",
+                borderRadius: 4,
+                overflow: "hidden",
+                height: `${m.total > 0 ? Math.max((m.total / maxTotal) * 100, 6) : 0}%`,
+                background: m.total > 0 ? "#0f0f0f" : "transparent",
               }}>
-                <div style={{
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column-reverse",
-                  borderRadius: 4,
-                  overflow: "hidden",
-                  height: `${m.total > 0 ? Math.max((m.total / maxTotal) * 100, 6) : 0}%`,
-                  background: m.total > 0 ? "#0f0f0f" : "transparent",
+                {m.tasks.filter(t => t.count > 0).map((t, idx) => (
+                  <div key={idx} style={{
+                    width: "100%",
+                    height: `${(t.count / m.total) * 100}%`,
+                    background: t.hex,
+                  }} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 6, padding: "6px 2px 0" }}>
+          {report.map(m => (
+            <div key={m.monthIndex} style={{
+              flex: 1, textAlign: "center", fontFamily: "'DM Mono', monospace",
+              fontSize: 10, color: m.monthIndex === today.getMonth() && reportYear === today.getFullYear() ? "#fff" : "#666",
+            }}>
+              {tr.months[m.monthIndex].slice(0, 3)}
+            </div>
+          ))}
+        </div>
+
+        {/* Legenda */}
+        {Object.keys(legendMap).length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "20px 0 8px" }}>
+            {Object.entries(legendMap).map(([hex, info]) => (
+              <div key={hex} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 9, height: 9, borderRadius: "50%", background: hex, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "#999" }}>{info.label}</span>
+                <span style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>{info.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Rozbicie na miesiące */}
+      <div style={{ padding: "20px 16px 24px" }}>
+        <div style={{
+          fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
+          letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
+        }}>
+          {tt('monthlyBreakdown')}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {report.map(m => (
+            <div key={m.monthIndex} style={{
+              padding: "10px 14px",
+              background: "#1a1a1a",
+              borderRadius: 12,
+              border: "1px solid #2a2a2a",
+            }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                marginBottom: m.tasks.some(t => t.count > 0) ? 8 : 0,
+              }}>
+                <span style={{ fontSize: 14, color: "#ddd" }}>{tr.months[m.monthIndex]}</span>
+                <span style={{
+                  fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 500,
+                  color: m.total > 0 ? "#fff" : "#444",
                 }}>
+                  {m.total > 0 ? m.total : "—"}
+                </span>
+              </div>
+              {m.tasks.filter(t => t.count > 0).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {m.tasks.filter(t => t.count > 0).map((t, idx) => (
-                    <div key={idx} style={{
-                      width: "100%",
-                      height: `${(t.count / m.total) * 100}%`,
-                      background: t.hex,
-                    }} />
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.hex, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: "#999" }}>{t.label}</span>
+                      <span style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>{t.count}</span>
+                    </div>
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 6, padding: "6px 2px 0" }}>
-            {report.map(m => (
-              <div key={m.monthIndex} style={{
-                flex: 1, textAlign: "center", fontFamily: "'DM Mono', monospace",
-                fontSize: 10, color: m.monthIndex === today.getMonth() && reportYear === today.getFullYear() ? "#fff" : "#666",
-              }}>
-                {tr.months[m.monthIndex].slice(0, 3)}
-              </div>
-            ))}
-          </div>
-
-          {/* Legenda */}
-          {Object.keys(legendMap).length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, margin: "20px 0 8px" }}>
-              {Object.entries(legendMap).map(([hex, info]) => (
-                <div key={hex} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ width: 9, height: 9, borderRadius: "50%", background: hex, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#999" }}>{info.label}</span>
-                  <span style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>{info.count}</span>
-                </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Rozbicie na miesiące */}
-        <div style={{ padding: "20px 16px 24px" }}>
-          <div style={{
-            fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555",
-            letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase",
-          }}>
-            {tt('monthlyBreakdown')}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {report.map(m => (
-              <div key={m.monthIndex} style={{
-                padding: "10px 14px",
-                background: "#1a1a1a",
-                borderRadius: 12,
-                border: "1px solid #2a2a2a",
-              }}>
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  marginBottom: m.tasks.some(t => t.count > 0) ? 8 : 0,
-                }}>
-                  <span style={{ fontSize: 14, color: "#ddd" }}>{tr.months[m.monthIndex]}</span>
-                  <span style={{
-                    fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 500,
-                    color: m.total > 0 ? "#fff" : "#444",
-                  }}>
-                    {m.total > 0 ? m.total : "—"}
-                  </span>
-                </div>
-                {m.tasks.filter(t => t.count > 0).length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {m.tasks.filter(t => t.count > 0).map((t, idx) => (
-                      <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.hex, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: "#999" }}>{t.label}</span>
-                        <span style={{ fontSize: 12, color: "#666", fontFamily: "'DM Mono', monospace" }}>{t.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   // ---------- RENDEROWANIE CAŁEJ STRONY MIESIĄCA ----------
   const renderMonthPage = (year, month, isInteractive) => {
