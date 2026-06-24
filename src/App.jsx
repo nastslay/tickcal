@@ -937,6 +937,28 @@ function resetCurrentDay() {
 
   // ---------- RENDEROWANIE RAPORTU ROCZNEGO ----------
   const renderReportPage = () => {
+	const handleReportTouchStart = (e) => {
+      touchStartX.current = e.changedTouches[0].screenX;
+    };
+
+    const handleReportTouchEnd = (e) => {
+      if (touchStartX.current === null) return;
+      const endX = e.changedTouches[0].screenX;
+      const diffX = endX - touchStartX.current;
+      
+      // Jeśli swipe w prawo jest wystarczająco duży (np. > 80px)
+      if (diffX > 80) {
+        setView("calendar");
+      }
+      touchStartX.current = null;
+    };
+
+    return (
+      <div 
+        style={{ width: "100%" }} 
+        onTouchStart={handleReportTouchStart} 
+        onTouchEnd={handleReportTouchEnd}
+      >
     const years = getAvailableYears();
     const report = computeYearReport(reportYear);
     const maxTotal = Math.max(1, ...report.map(m => m.total));
