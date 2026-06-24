@@ -1291,18 +1291,17 @@ function resetCurrentDay() {
                   onMouseDown={isInteractive ? e => e.currentTarget.style.transform = "scale(0.93)" : undefined}
                   onMouseUp={isInteractive ? e => e.currentTarget.style.transform = "scale(1)" : undefined}
                 >
-				  {hasNote && (
-                    <div style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: 6,
-                      height: 22,
-                      backgroundColor: "#ff4d4d",
-                      borderTopLeftRadius: 8,
-                      borderBottomRightRadius: 6,
-                    }} />
-                  )}
+					{hasNote && (
+					  <div style={{
+					    position: "absolute",
+					    top: 0,
+					    left: 0,
+					    width: 25,  // Zwiększyłem szerokość, aby kształt był czytelny
+					    height: 30, // Zwiększyłem wysokość
+					    backgroundColor: "#ff4d4d",
+					    clipPath: "polygon(18% 0, 18% 42%, 9% 34%, 0 42%, 0 0)",
+					  }} />
+					)}
                   {tileEmoji ? (
                     <div style={{
                       position: "absolute",
