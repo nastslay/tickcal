@@ -1297,7 +1297,7 @@ function resetCurrentDay() {
 					    top: 0,
 					    left: 2,
 					    width: 50,  // Zwiększyłem szerokość, aby kształt był czytelny
-					    height: 60, // Zwiększyłem wysokość
+					    height: 50, // Zwiększyłem wysokość
 					    backgroundColor: "#ff4d4d",
 					    clipPath: "polygon(18% 0, 18% 42%, 9% 34%, 0 42%, 0 0)",
 					  }} />
