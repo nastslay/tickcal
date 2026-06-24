@@ -100,6 +100,7 @@ const translations = {
     yearlyOverview: "Podsumowanie roku",
     monthlyBreakdown: "Rozbicie na miesiące",
     noActivity: "Brak aktywności",
+	resetDayConfirm: "Czy na pewno chcesz usunąć wszystkie zaznaczenia i notatkę z tego dnia?",
   },
   en: {
     months: [
@@ -164,6 +165,7 @@ const translations = {
     yearlyOverview: "Year overview",
     monthlyBreakdown: "Monthly breakdown",
     noActivity: "No activity",
+	resetDayConfirm: "Are you sure you want to remove all marks and the note from this day?",
   }
 };
 
@@ -332,7 +334,8 @@ export default function App() {
   // Widok: kalendarz vs raport roczny
   const [view, setView] = useState("calendar");
   const [reportYear, setReportYear] = useState(today.getFullYear());
-
+  const isViewSlidingRef = useRef(false);
+  const viewSlideContainerRef = useRef(null);
   // ---------- PWA: rejestracja service workera ----------
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -461,6 +464,34 @@ export default function App() {
     [viewYear, viewMonth]
   );
 
+	const transitionView = useCallback((toView) => {
+	  if (isViewSlidingRef.current || isSlidingRef.current) return;
+	  isViewSlidingRef.current = true;
+
+	  const fromView = view;
+	  const startTranslate = fromView === "calendar" ? 0 : -100;
+	  const endTranslate = toView === "calendar" ? 0 : -100;
+
+	  requestAnimationFrame(() => {
+		const container = viewSlideContainerRef.current;
+		if (!container) return;
+		container.style.transition = "none";
+		container.style.transform = `translateX(${startTranslate}%)`;
+		container.offsetHeight; // reflow
+		container.style.transition = "transform 0.4s ease";
+		container.style.transform = `translateX(${endTranslate}%)`;
+
+		setTimeout(() => {
+		  setView(toView);
+		  isViewSlidingRef.current = false;
+		  if (viewSlideContainerRef.current) {
+			viewSlideContainerRef.current.style.transition = "none";
+			viewSlideContainerRef.current.style.transform = `translateX(${endTranslate}%)`;
+		  }
+		}, 400);
+	  });
+	}, [view, isSlidingRef]);
+	
   function prevMonth() { navigateMonth(-1); }
   function nextMonth() { navigateMonth(1); }
 
@@ -494,29 +525,32 @@ export default function App() {
       }
     }
 
-    function onTouchEnd(e) {
-      if (touchStartX.current === null) return;
+		function onTouchEnd(e) {
+		  if (touchStartX.current === null) return;
 
-      const endX = e.changedTouches[0].screenX;
-      const endY = e.changedTouches[0].screenY;
-      const diffX = touchStartX.current - endX;
-      const diffY = touchStartY.current - endY;
-      const elapsed = Date.now() - touchStartTime.current;
+		  const endX = e.changedTouches[0].screenX;
+		  const endY = e.changedTouches[0].screenY;
+		  const diffX = touchStartX.current - endX;
+		  const diffY = touchStartY.current - endY;
+		  const elapsed = Date.now() - touchStartTime.current;
 
-      touchStartX.current = null;
-      touchStartY.current = null;
-      touchStartTime.current = null;
+		  touchStartX.current = null;
+		  touchStartY.current = null;
+		  touchStartTime.current = null;
 
-      if (elapsed > SWIPE_MAX_TIME) return;
-      if (Math.abs(diffY) > SWIPE_MAX_Y) return;
-      if (Math.abs(diffX) < SWIPE_THRESHOLD) return;
+		  if (elapsed > SWIPE_MAX_TIME) return;
+		  if (Math.abs(diffY) > SWIPE_MAX_Y) return;
+		  if (Math.abs(diffX) < SWIPE_THRESHOLD) return;
 
-      if (diffX > 0) {
-        navigateMonth(1);
-      } else {
-        navigateMonth(-1);
-      }
-    }
+		  // Swipe miesięcy działa tylko w kalendarzu i gdy nie przechodzimy między widokami
+		  if (view !== "calendar" || isViewSlidingRef.current) return;
+
+		  if (diffX > 0) {
+			navigateMonth(1);
+		  } else {
+			navigateMonth(-1);
+		  }
+		}
 
     window.addEventListener('touchstart', onTouchStart, { passive: false });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -941,16 +975,15 @@ function resetCurrentDay() {
   const handleReportTouchStart = (e) => {
     touchStartX.current = e.changedTouches[0].screenX;
   };
-  const handleReportTouchEnd = (e) => {
-    if (touchStartX.current === null) return;
-    const endX = e.changedTouches[0].screenX;
-    const diffX = endX - touchStartX.current;
-    if (diffX > 80) {
-      setView("calendar");
-    }
-    touchStartX.current = null;
-  };
-
+const handleReportTouchEnd = (e) => {
+  if (touchStartX.current === null) return;
+  const endX = e.changedTouches[0].screenX;
+  const diffX = endX - touchStartX.current;
+  if (diffX > 80) {
+    transitionView("calendar");
+  }
+  touchStartX.current = null;
+};
   // computations (moved out of JSX)
   const years = getAvailableYears();
   const report = computeYearReport(reportYear);
@@ -979,7 +1012,7 @@ function resetCurrentDay() {
         zIndex: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <button onClick={() => setView("calendar")} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
+          <button onClick={() => transitionView("calendar")} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
           <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
             {tt('report')}
           </span>
@@ -1520,90 +1553,105 @@ function resetCurrentDay() {
   };
 
   // ---------- RENDER GŁÓWNY ----------
-  return (
-    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
-      {view === "report" ? (
-        renderReportPage()
-      ) : (
-      <>
-      {/* Kontener slajdu obejmujący całą zawartość */}
-      <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
-        <div
-          ref={slideContainerRef}
-          style={{
-            display: "flex",
-            width: "200%",
-          }}
-        >
-          {slide.active && slide.swap ? (
-            <>
-              <div style={{ width: "50%", flexShrink: 0 }}>
-                {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
-              </div>
-              <div style={{ width: "50%", flexShrink: 0 }}>
-                {renderMonthPage(viewYear, viewMonth, false)}
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ width: "50%", flexShrink: 0 }}>
-                {renderMonthPage(viewYear, viewMonth, !slide.active)}
-              </div>
-              {slide.active && (
-                <div style={{ width: "50%", flexShrink: 0 }}>
-                  {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+	  return (
+	  <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
+		{/* Zewnętrzny kontener slajdu (kalendarz ↔ raport) */}
+		<div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
+		  <div
+			ref={viewSlideContainerRef}
+			style={{
+			  display: "flex",
+			  width: "200%",
+			}}
+		  >
+			{/* === Widok kalendarza (pierwsze dziecko) === */}
+			<div style={{ width: "50%", flexShrink: 0, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+			  {/* Wewnętrzny slajder miesięcy */}
+			  <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
+				<div
+				  ref={slideContainerRef}
+				  style={{
+					display: "flex",
+					width: "200%",
+				  }}
+				>
+				  {slide.active && slide.swap ? (
+					<>
+					  <div style={{ width: "50%", flexShrink: 0 }}>
+						{renderMonthPage(slide.targetYear, slide.targetMonth, false)}
+					  </div>
+					  <div style={{ width: "50%", flexShrink: 0 }}>
+						{renderMonthPage(viewYear, viewMonth, false)}
+					  </div>
+					</>
+				  ) : (
+					<>
+					  <div style={{ width: "50%", flexShrink: 0 }}>
+						{renderMonthPage(viewYear, viewMonth, !slide.active)}
+					  </div>
+					  {slide.active && (
+						<div style={{ width: "50%", flexShrink: 0 }}>
+						  {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
+						</div>
+					  )}
+					</>
+				  )}
+				</div>
+			  </div>
 
-      {/* STOPKA – ZAWSZE NA DOLE (poza slajdem) */}
-      {!slide.active && (
-        <div style={{
-          borderTop: "1px solid #2a2a2a",
-          padding: "16px 16px 24px",
-          background: "#1a1a1a",
-        }}>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
-            <button onClick={() => { setReportYear(viewYear); setView("report"); }} style={footerButton}>📊 {tt('report')}</button>
-            <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
-            <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
-            <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
-            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
-          </div>
-          <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-            {tt('backupInfo')}
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
-            <button
-              onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
-              style={{
-                background: "none", border: "none", fontSize: 22, cursor: "pointer",
-                filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)",
-                opacity: lang === 'pl' ? 1 : 0.5,
-              }}
-              title="Polski"
-            >
-              🇵🇱
-            </button>
-            <button
-              onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
-              style={{
-                background: "none", border: "none", fontSize: 22, cursor: "pointer",
-                filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)",
-                opacity: lang === 'en' ? 1 : 0.5,
-              }}
-              title="English"
-            >
-              🇬🇧
-            </button>
-          </div>
-        </div>
-      )}
-      </>
-      )}
+			  {/* Stopka – widoczna tylko, gdy nie trwa animacja miesiąca */}
+			  {!slide.active && (
+				<div style={{
+				  borderTop: "1px solid #2a2a2a",
+				  padding: "16px 16px 24px",
+				  background: "#1a1a1a",
+				}}>
+				  <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+					<button onClick={() => { setReportYear(viewYear); transitionView("report"); }} style={footerButton}>📊 {tt('report')}</button>
+					<button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
+					<button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
+					<button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
+					<input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
+				  </div>
+				  <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+					{tt('backupInfo')}
+				  </div>
+				  <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
+					<button
+					  onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
+					  style={{
+						background: "none", border: "none", fontSize: 22, cursor: "pointer",
+						filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)",
+						opacity: lang === 'pl' ? 1 : 0.5,
+					  }}
+					  title="Polski"
+					>
+					  🇵🇱
+					</button>
+					<button
+					  onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
+					  style={{
+						background: "none", border: "none", fontSize: 22, cursor: "pointer",
+						filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)",
+						opacity: lang === 'en' ? 1 : 0.5,
+					  }}
+					  title="English"
+					>
+					  🇬🇧
+					</button>
+				  </div>
+				</div>
+			  )}
+			</div>
+
+			{/* === Widok raportu (drugie dziecko) === */}
+			<div style={{ width: "50%", flexShrink: 0, minHeight: "100vh" }}>
+			  {renderReportPage()}
+			</div>
+		  </div>
+		</div>
+
+
 
       {/* MODALE (poza kontenerem slajdu, są fixed) */}
       {showNoteModal && (
