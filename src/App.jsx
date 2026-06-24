@@ -1295,11 +1295,11 @@ function resetCurrentDay() {
 					  <div style={{
 					    position: "absolute",
 					    top: 0,
-					    left: 2,
+					    left: 3,
 					    width: 50,  // Zwiększyłem szerokość, aby kształt był czytelny
-					    height: 50, // Zwiększyłem wysokość
+					    height: 55, // Zwiększyłem wysokość
 					    backgroundColor: "#ff4d4d",
-					    clipPath: "polygon(18% 0, 18% 42%, 9% 34%, 0 42%, 0 0)",
+					    clipPath: "polygon(18% 0, 18% 42%, 9% 37%, 0 42%, 0 0)",
 					  }} />
 					)}
                   {tileEmoji ? (
