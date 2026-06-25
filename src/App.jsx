@@ -1317,7 +1317,7 @@ function resetCurrentDay() {
 					    width: 50,  // Zwiększyłem szerokość, aby kształt był czytelny
 					    height: 55, // Zwiększyłem wysokość
 					    backgroundColor: "#ff4d4d",
-					    clipPath: "polygon(18% 0, 18% 42%, 9% 37%, 0 42%, 0 0)",
+					    clipPath: "polygon(0 0, 0 28%, 28% 0)",
 					  }} />
 					)}
                   {tileEmoji ? (
