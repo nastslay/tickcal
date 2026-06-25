@@ -1313,7 +1313,7 @@ function resetCurrentDay() {
 					  <div style={{
 					    position: "absolute",
 					    top: 0,
-					    left: 3,
+					    left: 0,
 					    width: 50,  // Zwiększyłem szerokość, aby kształt był czytelny
 					    height: 55, // Zwiększyłem wysokość
 					    backgroundColor: "#ff4d4d",
