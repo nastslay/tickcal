@@ -1664,45 +1664,77 @@ function resetCurrentDay() {
                 {noteEmoji || "🙂"}
               </button>
 
-              {showEmojiPicker && (
-                <div style={{
-                  position: "absolute", top: 42, right: 0,
-                  background: "#252525", border: "1px solid #3a3a3a",
-                  borderRadius: 16, padding: 10,
-                  display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
-                  gap: 4, zIndex: 10,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-                  width: 222, maxHeight: 240, overflowY: "auto",
-                }}>
-                  {noteEmoji && (
-                    <button
-                      onClick={() => { setNoteEmoji(""); setShowEmojiPicker(false); }}
-                      style={{
-                        gridColumn: "1 / -1", background: "#1a1a1a", border: "1px solid #444",
-                        borderRadius: 8, padding: "4px 0", color: "#888", fontSize: 11,
-                        cursor: "pointer", marginBottom: 4, fontFamily: "'DM Sans', sans-serif",
-                      }}
-                    >
-                      ✕ usuń emotikonę
-                    </button>
-                  )}
-                  {NOTE_EMOJIS.map((em, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { setNoteEmoji(em); setShowEmojiPicker(false); }}
-                      style={{
-                        background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
-                        border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
-                        borderRadius: 8, fontSize: 18, cursor: "pointer",
-                        width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-                      }}
-                    >
-                      {em}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+				{showEmojiPicker && (
+				  <div
+				    style={{
+				      position: "absolute",
+				      top: 42,
+				      right: 0,
+				      background: "#252525",
+				      border: "1px solid #3a3a3a",
+				      borderRadius: 16,
+				      padding: 10,
+				      display: "grid",
+				      gridTemplateColumns: "repeat(6, 1fr)",
+				      gap: 6,
+				      zIndex: 10,
+				      boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+				      width: 300,
+				      maxWidth: "calc(100vw - 80px)",
+				      maxHeight: 280,
+				      overflowY: "auto",
+				      overflowX: "hidden",
+				    }}
+				  >
+				    {noteEmoji && (
+				      <button
+				        onClick={() => {
+				          setNoteEmoji("");
+				          setShowEmojiPicker(false);
+				        }}
+				        style={{
+				          gridColumn: "1 / -1",
+				          background: "#1a1a1a",
+				          border: "1px solid #444",
+				          borderRadius: 8,
+				          padding: "6px 0",
+				          color: "#888",
+				          fontSize: 12,
+				          cursor: "pointer",
+				          marginBottom: 4,
+				          fontFamily: "'DM Sans', sans-serif",
+				        }}
+				      >
+				        ✕ usuń emotikonę
+				      </button>
+				    )}
+				
+				    {NOTE_EMOJIS.map((em, i) => (
+				      <button
+				        key={i}
+				        onClick={() => {
+				          setNoteEmoji(em);
+				          setShowEmojiPicker(false);
+				        }}
+				        style={{
+				          background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
+				          border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
+				          borderRadius: 10,
+				          fontSize: 24,
+				          cursor: "pointer",
+				          width: 40,
+				          height: 40,
+				          display: "flex",
+				          alignItems: "center",
+				          justifyContent: "center",
+				        }}
+				      >
+				        {em}
+				      </button>
+				    ))}
+				  </div>
+				)}
+
 
             {/* Tytuł */}
             <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", paddingRight: 44 }}>
