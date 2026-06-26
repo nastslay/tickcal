@@ -1544,173 +1544,168 @@ function resetCurrentDay() {
     );
   };
 
-	// ---------- RENDER GŁÓWNY ----------
-	  return (
-	    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
-	      {view === "report" ? (
-	        <div ref={reportViewRef} style={{ width: "100%", overflow: "hidden" }}>
-	          {renderReportPage()}
-	        </div>
-	      ) : (
-	      <>
-	      {/* Kontener slajdu obejmujący całą zawartość */}
-	      <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
-	        <div
-	          ref={slideContainerRef}
-	          style={{
-	            display: "flex",
-	            width: "200%",
-	          }}
-	        >
-	          {slide.active && slide.swap ? (
-	            <>
-	              <div style={{ width: "50%", flexShrink: 0 }}>
-	                {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
-	              </div>
-	              <div style={{ width: "50%", flexShrink: 0 }}>
-	                {renderMonthPage(viewYear, viewMonth, false)}
-	              </div>
-	            </>
-	          ) : (
-	            <>
-	              <div style={{ width: "50%", flexShrink: 0 }}>
-	                {renderMonthPage(viewYear, viewMonth, !slide.active)}
-	              </div>
-	              {slide.active && (
-	                <div style={{ width: "50%", flexShrink: 0 }}>
-	                  {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
-	                </div>
-	              )}
-	            </>
-	          )}
-	        </div>
-	      </div>
-	
-	      {/* STOPKA – ZAWSZE NA DOLE (poza slajdem) */}
-	      {!slide.active && (
-	        <div style={{
-	          borderTop: "1px solid #2a2a2a",
-	          padding: "16px 16px 24px",
-	          background: "#1a1a1a",
-	        }}>
-	          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
-	            <button onClick={() => { setReportYear(viewYear); setView("report"); }} style={footerButton}>📊 {tt('report')}</button>
-	            <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
-	            <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
-	            <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
-	            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
-	          </div>
-	          <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
-	            {tt('backupInfo')}
-	          </div>
-	          <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
-	            <button
-	              onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
-	              style={{
-	                background: "none", border: "none", fontSize: 22, cursor: "pointer",
-	                filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)",
-	                opacity: lang === 'pl' ? 1 : 0.5,
-	              }}
-	              title="Polski"
-	            >
-	              🇵🇱
-	            </button>
-	            <button
-	              onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
-	              style={{
-	                background: "none", border: "none", fontSize: 22, cursor: "pointer",
-	                filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)",
-	                opacity: lang === 'en' ? 1 : 0.5,
-	              }}
-	              title="English"
-	            >
-	              🇬🇧
-	            </button>
-	          </div>
-	        </div>
-	      )}
-	      </>
-	      )}
-	
-	      {/* MODALE (poza kontenerem slajdu, są fixed) */}
-	      {showNoteModal && (
-	        <div style={{
-	          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-	          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-	          zIndex: 1000,
-	        }} onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }}>
-	          <div style={{
-	            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
-	            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
-	            position: "relative",
-	          }} onClick={e => e.stopPropagation()}>
-	
-	            {/* Emoji button – prawy górny róg */}
-	            <div style={{ position: "absolute", top: 18, right: 18 }}>
-	              <button
-	                onClick={() => setShowEmojiPicker(p => !p)}
-	                style={{
-	                  background: noteEmoji ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)",
-	                  border: "1px solid #444",
-	                  borderRadius: 10,
-	                  width: 36, height: 36,
-	                  fontSize: noteEmoji ? 20 : 16,
-	                  cursor: "pointer",
-	                  display: "flex", alignItems: "center", justifyContent: "center",
-	                  transition: "background 0.1s",
-	                }}
-	                title="Wybierz emotikonę"
-	              >
-	                {noteEmoji || "🙂"}
-	              </button>
-	
-	              {showEmojiPicker && (
-	                <div style={{
-	                  position: "absolute", top: 42, right: 0,
-	                  background: "#252525", border: "1px solid #3a3a3a",
-	                  borderRadius: 16, padding: 10,
-	                  display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
-	                  gap: 6, zIndex: 10,
-	                  boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-	                  width: 300,
-	                  maxWidth: "calc(100vw - 80px)",
-	                  maxHeight: 280, overflowY: "auto",
-	                  overflowX: "hidden",
-	                }}>
-	                  {noteEmoji && (
-	                    <button
-	                      onClick={() => { setNoteEmoji(""); setShowEmojiPicker(false); }}
-	                      style={{
-	                        gridColumn: "1 / -1", background: "#1a1a1a", border: "1px solid #444",
-	                        borderRadius: 8, padding: "6px 0", color: "#888", fontSize: 12,
-	                        cursor: "pointer", marginBottom: 4, fontFamily: "'DM Sans', sans-serif",
-	                      }}
-	                    >
-	                      ✕ usuń emotikonę
-	                    </button>
-	                  )}
-	                  {NOTE_EMOJIS.map((em, i) => (
-	                    <button
-	                      key={i}
-	                      onClick={() => { setNoteEmoji(em); setShowEmojiPicker(false); }}
-	                      style={{
-	                        background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
-	                        border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
-	                        borderRadius: 10, fontSize: 24, cursor: "pointer",
-	                        width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
-	                      }}
-	                    >
-	                      {em}
-	                    </button>
-	                  ))}
-	                </div>
-	              )}
-	            </div>
-	          </div>
-	        </div>
-	      )}
-	    </div>
-	  );
+// ---------- RENDER GŁÓWNY ----------
+  return (
+    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
+      {view === "report" ? (
+        <div ref={reportViewRef} style={{ width: "100%", overflow: "hidden" }}>
+          {renderReportPage()}
+        </div>
+      ) : (
+      <>
+      {/* Kontener slajdu obejmujący całą zawartość */}
+      <div style={{ flex: 1, overflow: "hidden", width: "100%" }}>
+        <div
+          ref={slideContainerRef}
+          style={{
+            display: "flex",
+            width: "200%",
+          }}
+        >
+          {slide.active && slide.swap ? (
+            <>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
+              </div>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                {renderMonthPage(viewYear, viewMonth, false)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ width: "50%", flexShrink: 0 }}>
+                {renderMonthPage(viewYear, viewMonth, !slide.active)}
+              </div>
+              {slide.active && (
+                <div style={{ width: "50%", flexShrink: 0 }}>
+                  {renderMonthPage(slide.targetYear, slide.targetMonth, false)}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* STOPKA – ZAWSZE NA DOLE (poza slajdem) */}
+      {!slide.active && (
+        <div style={{
+          borderTop: "1px solid #2a2a2a",
+          padding: "16px 16px 24px",
+          background: "#1a1a1a",
+        }}>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={() => { setReportYear(viewYear); setView("report"); }} style={footerButton}>📊 {tt('report')}</button>
+            <button onClick={exportData} style={footerButton}>📤 {tt('export')}</button>
+            <button onClick={() => fileInputRef.current.click()} style={footerButton}>📥 {tt('import')}</button>
+            <button onClick={resetAllMonths} style={{ ...footerButton, background: "#2a2a2a", borderColor: "#a00" }}>🔄 {tt('resetAll')}</button>
+            <input type="file" ref={fileInputRef} style={{ display: "none" }} accept=".json" onChange={handleFileSelect} />
+          </div>
+          <div style={{ textAlign: "center", fontSize: 10, color: "#444", marginTop: 12 }}>
+            {tt('backupInfo')}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-start", gap: 12, marginTop: 12 }}>
+            <button
+              onClick={() => setLang(prev => prev === 'pl' ? 'en' : 'pl')}
+              style={{
+                background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                filter: lang === 'pl' ? "grayscale(0)" : "grayscale(1)",
+                opacity: lang === 'pl' ? 1 : 0.5,
+              }}
+              title="Polski"
+            >
+              🇵🇱
+            </button>
+            <button
+              onClick={() => setLang(prev => prev === 'en' ? 'pl' : 'en')}
+              style={{
+                background: "none", border: "none", fontSize: 22, cursor: "pointer",
+                filter: lang === 'en' ? "grayscale(0)" : "grayscale(1)",
+                opacity: lang === 'en' ? 1 : 0.5,
+              }}
+              title="English"
+            >
+              🇬🇧
+            </button>
+          </div>
+        </div>
+      )}
+      </>
+      )}
+
+      {/* MODALE (poza kontenerem slajdu, są fixed) */}
+      {showNoteModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }} onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }}>
+          <div style={{
+            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
+            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            position: "relative",
+          }} onClick={e => e.stopPropagation()}>
+
+            {/* Emoji button – prawy górny róg */}
+            <div style={{ position: "absolute", top: 18, right: 18 }}>
+              <button
+                onClick={() => setShowEmojiPicker(p => !p)}
+                style={{
+                  background: noteEmoji ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)",
+                  border: "1px solid #444",
+                  borderRadius: 10,
+                  width: 36, height: 36,
+                  fontSize: noteEmoji ? 20 : 16,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "background 0.1s",
+                }}
+                title="Wybierz emotikonę"
+              >
+                {noteEmoji || "🙂"}
+              </button>
+
+              {showEmojiPicker && (
+                <div style={{
+                  position: "absolute", top: 42, right: 0,
+                  background: "#252525", border: "1px solid #3a3a3a",
+                  borderRadius: 16, padding: 10,
+                  display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: 6, zIndex: 10,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+                  width: 300,
+                  maxWidth: "calc(100vw - 80px)",
+                  maxHeight: 280, overflowY: "auto",
+                  overflowX: "hidden",
+                }}>
+                  {noteEmoji && (
+                    <button
+                      onClick={() => { setNoteEmoji(""); setShowEmojiPicker(false); }}
+                      style={{
+                        gridColumn: "1 / -1", background: "#1a1a1a", border: "1px solid #444",
+                        borderRadius: 8, padding: "6px 0", color: "#888", fontSize: 12,
+                        cursor: "pointer", marginBottom: 4, fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      ✕ usuń emotikonę
+                    </button>
+                  )}
+                  {NOTE_EMOJIS.map((em, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setNoteEmoji(em); setShowEmojiPicker(false); }}
+                      style={{
+                        background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
+                        border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
+                        borderRadius: 10, fontSize: 24, cursor: "pointer",
+                        width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Tytuł */}
             <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", paddingRight: 44 }}>
