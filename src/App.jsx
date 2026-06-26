@@ -1634,107 +1634,107 @@ function resetCurrentDay() {
 
       {/* MODALE (poza kontenerem slajdu, są fixed) */}
       {showNoteModal && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
-        }} onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }}>
-          <div style={{
-            background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
-            border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
-            position: "relative",
-          }} onClick={e => e.stopPropagation()}>
+  <div
+    style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000,
+    }}
+    onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }}
+  >
+    <div
+      style={{
+        background: "#1e1e1e", borderRadius: 24, padding: 24, width: "90%", maxWidth: 400,
+        border: "1px solid #333", boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+        position: "relative",
+      }}
+      onClick={e => e.stopPropagation()} // Zapobiega zamykaniu przy kliknięciu w środek
+    >
+      {/* Emoji button – prawy górny róg */}
+      <div style={{ position: "absolute", top: 18, right: 18 }}>
+        <button
+          onClick={() => setShowEmojiPicker(p => !p)}
+          style={{
+            background: noteEmoji ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)",
+            border: "1px solid #444", borderRadius: 10,
+            width: 36, height: 36, fontSize: noteEmoji ? 20 : 16,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 0.1s",
+          }}
+          title="Wybierz emotikonę"
+        >
+          {noteEmoji || "🙂"}
+        </button>
 
-            {/* Emoji button – prawy górny róg */}
-            <div style={{ position: "absolute", top: 18, right: 18 }}>
+        {showEmojiPicker && (
+          <div
+            onClick={(e) => e.stopPropagation()} // KLUCZOWE: Zapobiega zamknięciu modala przy kliknięciu w picker
+            style={{
+              position: "absolute", top: 42, right: 0,
+              background: "#252525", border: "1px solid #3a3a3a",
+              borderRadius: 16, padding: 10,
+              display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+              gap: 6, zIndex: 2000, // Wyższy niż modala
+              boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+              width: 300, maxWidth: "calc(100vw - 80px)",
+              maxHeight: 280, overflowY: "auto",
+            }}
+          >
+            {noteEmoji && (
               <button
-                onClick={() => setShowEmojiPicker(p => !p)}
+                onClick={() => { setNoteEmoji(""); setShowEmojiPicker(false); }}
                 style={{
-                  background: noteEmoji ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)",
-                  border: "1px solid #444",
-                  borderRadius: 10,
-                  width: 36, height: 36,
-                  fontSize: noteEmoji ? 20 : 16,
-                  cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  transition: "background 0.1s",
+                  gridColumn: "1 / -1", background: "#1a1a1a", border: "1px solid #444",
+                  borderRadius: 8, padding: "6px 0", color: "#888", fontSize: 12,
+                  cursor: "pointer", marginBottom: 4, fontFamily: "'DM Sans', sans-serif",
                 }}
-                title="Wybierz emotikonę"
               >
-                {noteEmoji || "🙂"}
+                ✕ usuń emotikonę
               </button>
+            )}
+            {NOTE_EMOJIS.map((em, i) => (
+              <button
+                key={i}
+                onClick={() => { setNoteEmoji(em); setShowEmojiPicker(false); }}
+                style={{
+                  background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
+                  border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
+                  borderRadius: 10, fontSize: 24, cursor: "pointer",
+                  width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {em}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-				{showEmojiPicker && (
-				  <div
-				    style={{
-				      position: "absolute",
-				      top: 42,
-				      right: 0,
-				      background: "#252525",
-				      border: "1px solid #3a3a3a",
-				      borderRadius: 16,
-				      padding: 10,
-				      display: "grid",
-				      gridTemplateColumns: "repeat(6, 1fr)",
-				      gap: 6,
-				      zIndex: 10,
-				      boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-				      width: 300,
-				      maxWidth: "calc(100vw - 80px)",
-				      maxHeight: 280,
-				      overflowY: "auto",
-				      overflowX: "hidden",
-				    }}
-				  >
-				    {noteEmoji && (
-				      <button
-				        onClick={() => {
-				          setNoteEmoji("");
-				          setShowEmojiPicker(false);
-				        }}
-				        style={{
-				          gridColumn: "1 / -1",
-				          background: "#1a1a1a",
-				          border: "1px solid #444",
-				          borderRadius: 8,
-				          padding: "6px 0",
-				          color: "#888",
-				          fontSize: 12,
-				          cursor: "pointer",
-				          marginBottom: 4,
-				          fontFamily: "'DM Sans', sans-serif",
-				        }}
-				      >
-				        ✕ usuń emotikonę
-				      </button>
-				    )}
-				
-				    {NOTE_EMOJIS.map((em, i) => (
-				      <button
-				        key={i}
-				        onClick={() => {
-				          setNoteEmoji(em);
-				          setShowEmojiPicker(false);
-				        }}
-				        style={{
-				          background: noteEmoji === em ? "rgba(77,158,255,0.2)" : "transparent",
-				          border: noteEmoji === em ? "1px solid #4D9EFF" : "1px solid transparent",
-				          borderRadius: 10,
-				          fontSize: 24,
-				          cursor: "pointer",
-				          width: 40,
-				          height: 40,
-				          display: "flex",
-				          alignItems: "center",
-				          justifyContent: "center",
-				        }}
-				      >
-				        {em}
-				      </button>
-				    ))}
-				  </div>
-				)}
+      <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", paddingRight: 44 }}>
+        {tt('noteForDay', { date: selectedDate })}
+      </h3>
 
+      {/* Reszta Twojej zawartości modala pozostaje bez zmian */}
+      <textarea
+        autoFocus
+        value={noteDraft}
+        onChange={e => setNoteDraft(e.target.value)}
+        placeholder={tt('enterNote')}
+        rows={5}
+        style={{
+          width: "100%", background: "#0f0f0f", border: "1px solid #444", borderRadius: 12,
+          padding: 12, color: "#f0f0f0", fontSize: 14, fontFamily: "'DM Sans', sans-serif",
+          resize: "vertical", boxSizing: "border-box", marginTop: 10
+        }}
+      />
+      
+      <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
+        <button onClick={() => { setShowNoteModal(false); setShowEmojiPicker(false); }} style={{ ...modalButton, background: "#333" }}>{tt('cancel')}</button>
+        <button onClick={saveNote} style={{ ...modalButton, background: "#4D9EFF" }}>{tt('save')}</button>
+      </div>
+    </div>
+  </div>
+)}
 
             {/* Tytuł */}
             <h3 style={{ margin: "0 0 8px", fontSize: 18, color: "#fff", paddingRight: 44 }}>
