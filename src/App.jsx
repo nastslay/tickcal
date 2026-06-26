@@ -304,6 +304,10 @@ export default function App() {
   const isSlidingRef = useRef(false);
   const slideContainerRef = useRef(null);
 
+  // Animacja przejścia raport ↔ kalendarz
+  const reportViewRef = useRef(null);
+  const isReportSlidingRef = useRef(false);
+
   const [colors, setColors] = useState([]);
   const [ticks, setTicks] = useState({});
   const [labels, setLabels] = useState({});
@@ -464,6 +468,32 @@ export default function App() {
   function prevMonth() { navigateMonth(-1); }
   function nextMonth() { navigateMonth(1); }
 
+  // Animowane przejście z raportu do kalendarza (swipe w prawo)
+  const navigateToCalendar = useCallback(() => {
+    if (isReportSlidingRef.current) return;
+    isReportSlidingRef.current = true;
+    const el = reportViewRef.current;
+    if (!el) {
+      setView("calendar");
+      isReportSlidingRef.current = false;
+      return;
+    }
+    // Raport wyjeżdża w prawo
+    el.style.transition = "none";
+    el.style.transform = "translateX(0%)";
+    el.offsetHeight; // reflow
+    el.style.transition = "transform 0.4s ease";
+    el.style.transform = "translateX(100%)";
+    setTimeout(() => {
+      setView("calendar");
+      isReportSlidingRef.current = false;
+      if (reportViewRef.current) {
+        reportViewRef.current.style.transition = "none";
+        reportViewRef.current.style.transform = "translateX(0%)";
+      }
+    }, 400);
+  }, []);
+
   // ---------- SWIPE (przesuwanie palcem) ----------
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
@@ -511,10 +541,17 @@ export default function App() {
       if (Math.abs(diffY) > SWIPE_MAX_Y) return;
       if (Math.abs(diffX) < SWIPE_THRESHOLD) return;
 
-      if (diffX > 0) {
-        navigateMonth(1);
+      if (view === "report") {
+        // Na raporcie: swipe w prawo (diffX < 0) → wróć do kalendarza
+        if (diffX < 0) {
+          navigateToCalendar();
+        }
       } else {
-        navigateMonth(-1);
+        if (diffX > 0) {
+          navigateMonth(1);
+        } else {
+          navigateMonth(-1);
+        }
       }
     }
 
@@ -527,7 +564,7 @@ export default function App() {
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
     };
-  }, [viewYear, viewMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewYear, viewMonth, view, navigateToCalendar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- INICJALIZACJA DANYCH ----------
   useEffect(() => {
@@ -937,19 +974,7 @@ function resetCurrentDay() {
 
   // ---------- RENDEROWANIE RAPORTU ROCZNEGO ----------
   const renderReportPage = () => {
-  // touch handlers
-  const handleReportTouchStart = (e) => {
-    touchStartX.current = e.changedTouches[0].screenX;
-  };
-  const handleReportTouchEnd = (e) => {
-    if (touchStartX.current === null) return;
-    const endX = e.changedTouches[0].screenX;
-    const diffX = endX - touchStartX.current;
-    if (diffX > 80) {
-      setView("calendar");
-    }
-    touchStartX.current = null;
-  };
+  // touch handlers – swipe obsługiwany przez globalny useEffect, tu puste
 
   // computations (moved out of JSX)
   const years = getAvailableYears();
@@ -968,7 +993,7 @@ function resetCurrentDay() {
 
   // single JSX return
   return (
-    <div style={{ width: "100%" }} onTouchStart={handleReportTouchStart} onTouchEnd={handleReportTouchEnd}>
+    <div style={{ width: "100%" }}>
       {/* Nagłówek */}
       <div style={{
         background: "#1a1a1a",
@@ -979,7 +1004,7 @@ function resetCurrentDay() {
         zIndex: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <button onClick={() => setView("calendar")} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
+          <button onClick={navigateToCalendar} style={navBtnStyle} title={tr.months[viewMonth]}>‹</button>
           <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 500 }}>
             {tt('report')}
           </span>
@@ -1523,7 +1548,9 @@ function resetCurrentDay() {
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", touchAction: "pan-y" }}>
       {view === "report" ? (
-        renderReportPage()
+        <div ref={reportViewRef} style={{ width: "100%", overflow: "hidden" }}>
+          {renderReportPage()}
+        </div>
       ) : (
       <>
       {/* Kontener slajdu obejmujący całą zawartość */}
