@@ -1326,6 +1326,7 @@ function resetCurrentDay() {
                     justifyContent: "center",
                     gap: 4,
                     position: "relative",
+				    zIndex: 0,  
                     transition: "background 0.12s, transform 0.1s",
                     WebkitTapHighlightColor: "transparent",
                   }}
@@ -1343,6 +1344,7 @@ function resetCurrentDay() {
 					    height: 55, // Zwiększyłem wysokość
 					    backgroundColor: "#ff4d4d",
 					    clipPath: "polygon(0 5%, 5% 0, 25% 0, 0 25%)",
+						zIndex: -1,
 					  }} />
 					)}
                   {tileEmoji ? (
